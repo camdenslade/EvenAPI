@@ -1,0 +1,1 @@
+ssh -i "./alpha-login.pem" ubuntu@98.92.70.24
