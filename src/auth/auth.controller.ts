@@ -71,6 +71,7 @@ import {
   getDemoAccountByPhone,
   getDemoAccountsAlways,
 } from "../constants/review-config";
+import { isAuthRateLimitDisabled } from "../constants/rate-limit-config";
 
 // DTO for strong typing and automatic validation
 class RefreshSessionDto {
@@ -190,6 +191,10 @@ export class AuthController {
     phoneE164: string,
     action: keyof typeof PHONE_RATE_LIMITS,
   ): Promise<void> {
+    if (isAuthRateLimitDisabled()) {
+      return;
+    }
+
     const config = PHONE_RATE_LIMITS[action];
     const phoneHash = hashPhoneDeterministic(phoneE164);
     const key = `auth:phone:${action}:${phoneHash}`;
@@ -697,6 +702,10 @@ export class AuthController {
   //
   //*******************************************************************
   private async checkRateLimit(uid: string): Promise<void> {
+    if (isAuthRateLimitDisabled()) {
+      return;
+    }
+
     const key = `email_verification_rate:${uid}`;
     const windowMs = 15 * 60 * 1000; // 15 minutes
     const maxRequests = 3; // Max 3 requests per 15 minutes

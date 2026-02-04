@@ -27,6 +27,7 @@
 import { Injectable, NestMiddleware, Logger } from "@nestjs/common";
 import { Request, Response, NextFunction } from "express";
 import { RedisService } from "../redis/redis.service";
+import { isAuthRateLimitDisabled } from "../constants/rate-limit-config";
 
 // Only rate-limit abuse-prone routes; keep Redis off hot read paths.
 const RATE_LIMITS = {
@@ -75,6 +76,9 @@ export class RateLimitMiddleware implements NestMiddleware {
   async use(req: Request, res: Response, next: NextFunction) {
     const bucket = this.resolveBucket(req.path);
     if (!bucket) {
+      return next();
+    }
+    if (bucket.key === "auth" && isAuthRateLimitDisabled()) {
       return next();
     }
 

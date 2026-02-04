@@ -32,3 +32,4 @@ coverage/
 
 # Credentials
 *credentials*.json
+scripts/seed-demo-accounts.js
