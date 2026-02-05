@@ -579,12 +579,31 @@ export class SearchService {
 
       if (distance > roundedRadius && otherUid !== uid) continue; // Allow finding self regardless of distance
 
+      const firstPhoto = Array.isArray(p.photos) ? p.photos[0] : null;
+      let photoUrl: string | null = null;
+      if (firstPhoto) {
+        if (typeof firstPhoto === "string" && firstPhoto.startsWith("http")) {
+          photoUrl = firstPhoto;
+        } else if (typeof firstPhoto === "string") {
+          const normalized = this.normalizePhotoKey(firstPhoto);
+          if (normalized) {
+            try {
+              photoUrl = await this.s3.createReadUrl(normalized);
+            } catch {
+              photoUrl = null;
+            }
+          }
+        }
+      }
+
       results.push({
         id: p.id,
         name: p.name,
         age: this.calculateAge(p.birthday),
         bio: p.bio,
-        photoUrl: p.photos?.[0] ?? null,
+        photos: photoUrl ? [photoUrl] : [],
+        profileImageUrl: photoUrl,
+        photoUrl,
         distanceMiles: distance,
         userUid: otherUid,
       });
