@@ -6,6 +6,7 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "resolvePackageJsonExports": true,
+    "ignoreDeprecations": "6.0",
 
     // ================================================================
     // # JS/TS INTEROP

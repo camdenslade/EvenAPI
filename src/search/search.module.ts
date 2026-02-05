@@ -44,6 +44,7 @@ import { UsersModule } from "../users/users.module";
 import { TokensModule } from "../tokens/tokens.module";
 import { BlocksModule } from "../blocks/blocks.module";
 import { RedisModule } from "../redis/redis.module";
+import { S3Module } from "../s3/s3.module";
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { RedisModule } from "../redis/redis.module";
     TokensModule,
     BlocksModule,
     RedisModule,
+    S3Module,
   ],
   controllers: [SearchController],
   providers: [SearchService],

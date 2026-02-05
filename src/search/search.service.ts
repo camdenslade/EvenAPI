@@ -54,12 +54,16 @@ import { TokensService } from "../tokens/tokens.service";
 import { BlocksService } from "../blocks/blocks.service";
 import { RedisService } from "../redis/redis.service";
 import { getAllDemoUids, isDemoUidStatic } from "../constants/review-config";
+import { S3Service } from "../s3/s3.service";
 
 export interface ProfilePreview {
   id: string;
   name: string;
   age: number;
   bio: string;
+  photos: string[];
+  profileImageUrl: string | null;
+  // legacy field for older clients
   photoUrl: string | null;
   distanceMiles: number;
   userUid?: string;
@@ -99,7 +103,21 @@ export class SearchService {
     private readonly tokens: TokensService,
     private readonly blocksService: BlocksService,
     private readonly redis: RedisService,
+    private readonly s3: S3Service,
   ) {}
+
+  private normalizePhotoKey(key?: string | null): string | null {
+    if (!key) return null;
+    if (key.startsWith("http")) {
+      try {
+        const parsed = new URL(key);
+        return parsed.pathname.replace(/^\//, "");
+      } catch {
+        return null;
+      }
+    }
+    return key.replace(/^\//, "");
+  }
 
   //********************************************************************
   //
@@ -377,12 +395,31 @@ export class SearchService {
 
       if (!isDemoPair && distance > roundedRadius) continue;
 
+      const firstPhoto = Array.isArray(p.photos) ? p.photos[0] : null;
+      let photoUrl: string | null = null;
+      if (firstPhoto) {
+        if (typeof firstPhoto === "string" && firstPhoto.startsWith("http")) {
+          photoUrl = firstPhoto;
+        } else if (typeof firstPhoto === "string") {
+          const normalized = this.normalizePhotoKey(firstPhoto);
+          if (normalized) {
+            try {
+              photoUrl = await this.s3.createReadUrl(normalized);
+            } catch {
+              photoUrl = null;
+            }
+          }
+        }
+      }
+
       results.push({
         id: p.id,
         name: p.name,
         age: this.calculateAge(p.birthday),
         bio: p.bio,
-        photoUrl: p.photos?.[0] ?? null,
+        photos: photoUrl ? [photoUrl] : [],
+        profileImageUrl: photoUrl,
+        photoUrl,
         distanceMiles: distance,
         userUid: otherUid,
       });
