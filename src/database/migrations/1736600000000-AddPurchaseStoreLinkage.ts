@@ -11,7 +11,7 @@ export class AddPurchaseStoreLinkage1736600000000 implements MigrationInterface 
     // Add store column (apple | google)
     await queryRunner.query(`
       ALTER TABLE "purchases" 
-      ADD COLUMN "store" varchar NOT NULL DEFAULT 'apple'
+      ADD COLUMN IF NOT EXISTS "store" varchar NOT NULL DEFAULT 'apple'
     `);
 
     // Add storePurchaseIdentifier column (stable store-scoped identifier)
@@ -19,13 +19,13 @@ export class AddPurchaseStoreLinkage1736600000000 implements MigrationInterface 
     // Google: purchaseToken or obfuscatedAccountId
     await queryRunner.query(`
       ALTER TABLE "purchases" 
-      ADD COLUMN "storePurchaseIdentifier" varchar NULL
+      ADD COLUMN IF NOT EXISTS "storePurchaseIdentifier" varchar NULL
     `);
 
     // Add deletedAt column for soft deletion
     await queryRunner.query(`
       ALTER TABLE "purchases" 
-      ADD COLUMN "deletedAt" timestamptz NULL
+      ADD COLUMN IF NOT EXISTS "deletedAt" timestamptz NULL
     `);
 
     // Backfill store based on platform
@@ -50,7 +50,7 @@ export class AddPurchaseStoreLinkage1736600000000 implements MigrationInterface 
 
     // Create index for efficient restoration lookups
     await queryRunner.query(`
-      CREATE INDEX "IDX_purchases_store_identifier" 
+      CREATE INDEX IF NOT EXISTS "IDX_purchases_store_identifier" 
       ON "purchases" ("store", "storePurchaseIdentifier")
     `);
 
