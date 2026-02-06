@@ -14,7 +14,7 @@ export class CreateSafetyExclusions1736400000000 implements MigrationInterface {
     // If a SafetyIdentity must be deleted (admin action), SafetyExclusion
     // records must be handled explicitly first.
     await queryRunner.query(`
-      CREATE TABLE "safety_exclusions" (
+      CREATE TABLE IF NOT EXISTS "safety_exclusions" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "sourceSafetyIdentityId" uuid NOT NULL,
         "targetSafetyIdentityId" uuid NOT NULL,
@@ -31,11 +31,11 @@ export class CreateSafetyExclusions1736400000000 implements MigrationInterface {
 
     // Create index for efficient lookups
     await queryRunner.query(`
-      CREATE INDEX "IDX_safety_exclusions_source" ON "safety_exclusions" ("sourceSafetyIdentityId")
+      CREATE INDEX IF NOT EXISTS "IDX_safety_exclusions_source" ON "safety_exclusions" ("sourceSafetyIdentityId")
     `);
 
     await queryRunner.query(`
-      CREATE INDEX "IDX_safety_exclusions_target" ON "safety_exclusions" ("targetSafetyIdentityId")
+      CREATE INDEX IF NOT EXISTS "IDX_safety_exclusions_target" ON "safety_exclusions" ("targetSafetyIdentityId")
     `);
   }
 
