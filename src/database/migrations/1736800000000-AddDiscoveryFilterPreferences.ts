@@ -10,60 +10,60 @@ export class AddDiscoveryFilterPreferences1736800000000 implements MigrationInte
     // Height preference filters (min/max in inches)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefMinHeight" integer NULL
+      ADD COLUMN IF NOT EXISTS "prefMinHeight" integer NULL
     `);
 
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefMaxHeight" integer NULL
+      ADD COLUMN IF NOT EXISTS "prefMaxHeight" integer NULL
     `);
 
     // Race preference filter (array of race strings)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefRace" text[] NULL
+      ADD COLUMN IF NOT EXISTS "prefRace" text[] NULL
     `);
 
     // Religion preference filter (array of religion strings)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefReligion" text[] NULL
+      ADD COLUMN IF NOT EXISTS "prefReligion" text[] NULL
     `);
 
     // Politics preference filter (array of politics strings)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefPolitics" text[] NULL
+      ADD COLUMN IF NOT EXISTS "prefPolitics" text[] NULL
     `);
 
     // Education preference filter (array of education strings)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefEducation" text[] NULL
+      ADD COLUMN IF NOT EXISTS "prefEducation" text[] NULL
     `);
 
     // Activity level preference filter (single string)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefActivityLevel" varchar NULL
+      ADD COLUMN IF NOT EXISTS "prefActivityLevel" varchar NULL
     `);
 
     // Drinking preference filter (array of drinking strings)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefDrinking" text[] NULL
+      ADD COLUMN IF NOT EXISTS "prefDrinking" text[] NULL
     `);
 
     // Smoking preference filter (array of smoking strings)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefSmoking" text[] NULL
+      ADD COLUMN IF NOT EXISTS "prefSmoking" text[] NULL
     `);
 
     // Marijuana preference filter (array of marijuana strings)
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefMarijuana" text[] NULL
+      ADD COLUMN IF NOT EXISTS "prefMarijuana" text[] NULL
     `);
   }
 
