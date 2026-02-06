@@ -63,6 +63,8 @@ interface ReceiptVerificationResult {
   store: PurchaseStore; // 'apple' | 'google'
   purchaseType: PurchaseType;
   expiresAt?: Date | null;
+  isInGracePeriod?: boolean; // User is in billing retry grace period
+  gracePeriodExpiresAt?: Date | null; // When grace period ends
 }
 
 interface ParsedReceipt {
@@ -83,6 +85,9 @@ interface AppleTransactionPayload {
   bundleId?: string;
   revocationReason?: number;
   revocationDate?: string | number;
+  inBillingRetryPeriod?: boolean;
+  isInGracePeriod?: boolean;
+  gracePeriodExpiresDate?: string | number;
 }
 
 interface GoogleServiceAccount {
@@ -121,6 +126,7 @@ interface AppleServerNotification {
 @Injectable()
 export class PurchasesService {
   private readonly logger = new Logger(PurchasesService.name);
+  private receiptEncryptionKey: Buffer | null | undefined;
   private readonly jwtService = new JwtService();
 
   constructor(
@@ -173,6 +179,71 @@ export class PurchasesService {
       );
       throw new BadRequestException("Invalid receipt format");
     }
+  }
+
+  private getReceiptEncryptionKey(): Buffer | null {
+    if (this.receiptEncryptionKey !== undefined) {
+      return this.receiptEncryptionKey;
+    }
+    const rawKey = process.env.PURCHASE_RECEIPT_ENC_KEY;
+    if (!rawKey) {
+      this.receiptEncryptionKey = null;
+      return null;
+    }
+
+    let key: Buffer;
+    if (/^[0-9a-fA-F]{64}$/.test(rawKey)) {
+      key = Buffer.from(rawKey, "hex");
+    } else {
+      key = Buffer.from(rawKey, "base64");
+    }
+
+    if (key.length !== 32) {
+      throw new Error(
+        "PURCHASE_RECEIPT_ENC_KEY must be 32 bytes (base64 or hex).",
+      );
+    }
+
+    this.receiptEncryptionKey = key;
+    return key;
+  }
+
+  private hashReceipt(receipt: string): string {
+    const hash = crypto.createHash("sha256").update(receipt).digest("hex");
+    return `sha256:${hash}`;
+  }
+
+  private encryptReceipt(receipt: string, key: Buffer): string {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+    const ciphertext = Buffer.concat([
+      cipher.update(receipt, "utf8"),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+
+    const payload = {
+      v: 1,
+      alg: "aes-256-gcm",
+      iv: iv.toString("base64"),
+      tag: tag.toString("base64"),
+      ciphertext: ciphertext.toString("base64"),
+    };
+
+    return `enc:${Buffer.from(JSON.stringify(payload)).toString("base64")}`;
+  }
+
+  private protectReceiptForStorage(receipt: string): string {
+    const key = this.getReceiptEncryptionKey();
+    if (!key) {
+      if (process.env.NODE_ENV === "production") {
+        this.logger.warn(
+          "PURCHASE_RECEIPT_ENC_KEY missing; storing hashed receipt only.",
+        );
+      }
+      return this.hashReceipt(receipt);
+    }
+    return this.encryptReceipt(receipt, key);
   }
 
   private base64UrlEncode(input: string): string {
@@ -402,6 +473,18 @@ export class PurchasesService {
         throw new ForbiddenException("Receipt bundle mismatch");
       }
 
+      // Handle grace period - user still has access during billing retry
+      const isInGracePeriod =
+        transaction.isInGracePeriod === true ||
+        transaction.inBillingRetryPeriod === true;
+      const gracePeriodExpiresAt = transaction.gracePeriodExpiresDate
+        ? new Date(Number(transaction.gracePeriodExpiresDate))
+        : null;
+
+      // If subscription is expired but in grace period, extend expiresAt to grace period end
+      const effectiveExpiresAt =
+        isInGracePeriod && gracePeriodExpiresAt ? gracePeriodExpiresAt : expiresAt;
+
       return {
         valid: true,
         productId: transaction.productId,
@@ -411,7 +494,9 @@ export class PurchasesService {
           transaction.originalTransactionId || transaction.transactionId,
         store: "apple",
         purchaseType,
-        expiresAt,
+        expiresAt: effectiveExpiresAt,
+        isInGracePeriod,
+        gracePeriodExpiresAt,
       };
     } catch (error: unknown) {
       if (
@@ -471,6 +556,34 @@ export class PurchasesService {
           txn.transactionId,
           txn.originalTransactionId ?? txn.transactionId,
         );
+      }
+
+      // Handle expired subscriptions (billing failed after grace period)
+      if (type === "EXPIRED") {
+        await this.handleSubscriptionExpired(
+          "apple",
+          txn.transactionId,
+          txn.originalTransactionId ?? txn.transactionId,
+        );
+      }
+
+      // Log billing issues for monitoring (grace period started)
+      if (type === "DID_FAIL_TO_RENEW") {
+        this.audit("SUBSCRIPTION_BILLING_ISSUE", {
+          store: "apple",
+          transactionId: txn.transactionId,
+          originalTransactionId: txn.originalTransactionId,
+          notificationType: type,
+        });
+      }
+
+      // Handle successful renewal after billing issue
+      if (type === "DID_RENEW") {
+        this.audit("SUBSCRIPTION_RENEWED", {
+          store: "apple",
+          transactionId: txn.transactionId,
+          originalTransactionId: txn.originalTransactionId,
+        });
       }
     } catch (err) {
       this.logger.error(
@@ -724,6 +837,7 @@ export class PurchasesService {
   ): Promise<Purchase> {
     // Verify receipt (server-side validation)
     const verification = await this.verifyReceipt(platform, receipt);
+    const storedReceipt = this.protectReceiptForStorage(receipt);
 
     if (!verification.valid) {
       throw new BadRequestException("Receipt validation failed");
@@ -775,7 +889,8 @@ export class PurchasesService {
               transactionId: verification.transactionId,
               originalTransactionId: verification.originalTransactionId ?? null,
               storePurchaseIdentifier: verification.storePurchaseIdentifier,
-              receipt,
+              phoneHashDet: user.phoneHashDet ?? null, // Store phone hash for cross-account restore
+              receipt: storedReceipt,
               purchaseType: verification.purchaseType,
               status: "verified",
               expiresAt: verification.expiresAt ?? null,
@@ -788,6 +903,7 @@ export class PurchasesService {
           purchase.verifiedAt = new Date();
           purchase.deletedAt = null; // Clear soft-delete if restoring
           purchase.userId = userId; // Reassign to current user
+          purchase.receipt = storedReceipt;
           if (verification.expiresAt) {
             purchase.expiresAt = verification.expiresAt;
           }
@@ -927,8 +1043,12 @@ export class PurchasesService {
   // restorePurchases Method
   //
   // Restores active subscriptions and unused consumables for a user based on
-  // store account (Apple or Google). Queries purchases by store + storePurchaseIdentifier,
-  // not just userId, to support restoration after account deletion and re-signup.
+  // store account (Apple or Google) OR phone number. Queries purchases by:
+  // 1. store + storePurchaseIdentifier (primary - same store account)
+  // 2. phoneHashDet (secondary - same phone number, different store account)
+  //
+  // This supports restoration after account deletion and re-signup, even
+  // if the user signs in with a different Apple ID but the same phone number.
   // Includes soft-deleted purchases and reassigns them to current userId.
   //
   // Return Value
@@ -950,6 +1070,7 @@ export class PurchasesService {
   // user                    User|null           User entity
   // verification            ReceiptVerificationResult Verification result
   // purchases               Purchase[]          Purchases found by store identifier
+  // phoneHashPurchases      Purchase[]          Purchases found by phone hash
   // restored                Purchase[]         Restored purchases
   // purchase                Purchase           Purchase in loop
   // now                     Date               Current timestamp
@@ -978,7 +1099,7 @@ export class PurchasesService {
       });
       if (!user) throw new NotFoundException("User not found");
 
-      // Find purchases by store + storePurchaseIdentifier (NOT just userId)
+      // Find purchases by store + storePurchaseIdentifier (primary method)
       // This allows restoration after account deletion when user re-signs up
       // Include soft-deleted purchases (deletedAt IS NOT NULL)
       const purchases = await purchaseRepo.find({
@@ -989,17 +1110,39 @@ export class PurchasesService {
         },
       });
 
+      // Also find purchases by phone hash (secondary method)
+      // This allows restoration when user has a different Apple ID but same phone number
+      let phoneHashPurchases: Purchase[] = [];
+      if (user.phoneHashDet) {
+        phoneHashPurchases = await purchaseRepo.find({
+          where: {
+            phoneHashDet: user.phoneHashDet,
+            status: "verified",
+          },
+        });
+
+        // Filter out duplicates (purchases already found by store identifier)
+        const existingIds = new Set(purchases.map((p) => p.id));
+        phoneHashPurchases = phoneHashPurchases.filter(
+          (p) => !existingIds.has(p.id),
+        );
+      }
+
+      // Combine both sets of purchases
+      const allPurchases = [...purchases, ...phoneHashPurchases];
+
       // If no purchases found, return empty array (idempotent - no error)
-      if (purchases.length === 0) {
+      if (allPurchases.length === 0) {
         return [];
       }
 
       const restored: Purchase[] = [];
       const now = new Date();
 
-      for (const purchase of purchases) {
-        // Reassign purchase to current userId
+      for (const purchase of allPurchases) {
+        // Reassign purchase to current userId and update phone hash
         purchase.userId = userId;
+        purchase.phoneHashDet = user.phoneHashDet ?? purchase.phoneHashDet; // Update phone hash
         purchase.deletedAt = null; // Clear soft-delete
 
         if (purchase.purchaseType === "subscription") {
@@ -1069,10 +1212,71 @@ export class PurchasesService {
         }
       }
 
-      // Save all restored purchases (reassign userId, clear deletedAt)
-      await purchaseRepo.save(purchases);
+      // Save all restored purchases (reassign userId, clear deletedAt, update phoneHashDet)
+      await purchaseRepo.save(allPurchases);
 
       return restored;
+    });
+  }
+
+  //********************************************************************
+  //
+  // handleSubscriptionExpired Method
+  //
+  // Handles subscription expiration after billing retry period ends.
+  // Removes subscription status from user but does not mark purchase
+  // as failed (it was valid, just expired). Called by webhook handler.
+  //
+  //********************************************************************
+  private async handleSubscriptionExpired(
+    store: PurchaseStore,
+    transactionId?: string,
+    storePurchaseIdentifier?: string | null,
+  ): Promise<void> {
+    await this.purchaseRepo.manager.transaction(async (manager) => {
+      const purchaseRepo = manager.getRepository(Purchase);
+      const usersRepo = manager.getRepository(User);
+      const ledgerRepo = manager.getRepository(TokenLedger);
+
+      const purchase = await purchaseRepo.findOne({
+        where: storePurchaseIdentifier
+          ? { store, storePurchaseIdentifier }
+          : transactionId
+            ? { store, transactionId }
+            : undefined,
+      });
+
+      if (!purchase || purchase.purchaseType !== "subscription") {
+        return;
+      }
+
+      const user =
+        purchase.userId &&
+        (await usersRepo.findOne({
+          where: { id: purchase.userId, deletedAt: IsNull() },
+        }));
+
+      if (user) {
+        // Remove subscription tokens (keep purchased tokens)
+        await ledgerRepo.delete({
+          userId: user.id,
+          source: "subscription",
+          consumedAt: IsNull(),
+        });
+
+        // Clear subscription status
+        user.isSubscribed = false;
+        user.subscriptionExpiresAt = null;
+        await usersRepo.save(user);
+      }
+
+      this.audit("SUBSCRIPTION_EXPIRED", {
+        purchaseId: purchase.id,
+        userId: purchase.userId,
+        store: purchase.store,
+        transactionId: purchase.transactionId,
+        storePurchaseIdentifier: purchase.storePurchaseIdentifier,
+      });
     });
   }
 

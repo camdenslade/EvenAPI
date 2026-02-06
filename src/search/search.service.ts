@@ -73,12 +73,17 @@ export interface ProfilePreview {
 export class SearchService {
   private readonly HIDE_MS = 30 * 24 * 60 * 60 * 1000;
   private readonly searchCacheTtlSeconds = 45; // short TTL (soft cache)
-  // Allow global env toggle to disable token purchase gates (e.g. for review/demo)
-  private readonly paymentGatesEnabled =
-    process.env.DISABLE_PAYMENT_GATES === "true" ||
-    process.env.ENABLE_PAYMENTS === "false"
-      ? false
-      : true;
+  // Allow global env toggle to disable token purchase gates (e.g. for review/demo),
+  // but only outside production to avoid accidental free access in prod.
+  private readonly paymentGatesEnabled = (() => {
+    if (process.env.NODE_ENV === "production") {
+      return true;
+    }
+    return !(
+      process.env.DISABLE_PAYMENT_GATES === "true" ||
+      process.env.ENABLE_PAYMENTS === "false"
+    );
+  })();
 
   constructor(
     @InjectRepository(Profile)

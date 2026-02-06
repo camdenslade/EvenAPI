@@ -31,7 +31,8 @@
 // storePurchaseIdentifier string|null       Store-scoped stable purchase identifier (indexed)
 //                                                      Apple: original_transaction_id
 //                                                      Google: purchaseToken or obfuscatedAccountId
-// receipt               string              Store receipt data (JSON string)
+// phoneHashDet          string|null         Deterministic phone hash for cross-account restore
+// receipt               string              Protected receipt data (encrypted or hashed)
 // purchaseType          PurchaseType        Type (consumable, subscription)
 // status                PurchaseStatus      Verification status
 // expiresAt             Date|null           Subscription expiration (null for consumables)
@@ -63,6 +64,7 @@ export type PurchaseStatus = "pending" | "verified" | "failed";
 @Index(["userId", "purchaseType"])
 @Index(["transactionId", "platform"])
 @Index(["store", "storePurchaseIdentifier"]) // For purchase restoration by store account
+@Index(["phoneHashDet"]) // For purchase restoration by phone number
 export class Purchase {
   @PrimaryGeneratedColumn("uuid")
   id: string;
@@ -91,6 +93,9 @@ export class Purchase {
 
   @Column({ type: "varchar", nullable: true })
   storePurchaseIdentifier: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  phoneHashDet: string | null;
 
   @Column({ type: "text" })
   receipt: string;

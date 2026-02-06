@@ -142,12 +142,17 @@ export class UsersService {
   private readonly userCacheTtlSeconds = 300; // 5 minutes
   private readonly tokenCacheTtlSeconds = 60;
   // Allow global env toggle to disable token purchase gates (e.g. for review/demo)
-  // DISABLE_PAYMENT_GATES=true or ENABLE_PAYMENTS=false will turn off all token gating.
-  private readonly paymentGatesEnabled =
-    process.env.DISABLE_PAYMENT_GATES === "true" ||
-    process.env.ENABLE_PAYMENTS === "false"
-      ? false
-      : true;
+  // DISABLE_PAYMENT_GATES=true or ENABLE_PAYMENTS=false will turn off all token gating,
+  // but only outside production to avoid accidental free access in prod.
+  private readonly paymentGatesEnabled = (() => {
+    if (process.env.NODE_ENV === "production") {
+      return true;
+    }
+    return !(
+      process.env.DISABLE_PAYMENT_GATES === "true" ||
+      process.env.ENABLE_PAYMENTS === "false"
+    );
+  })();
   private readonly defaultPaymentFlags = {
     enablePayments: this.paymentGatesEnabled,
     enableSearchTokens: this.paymentGatesEnabled,

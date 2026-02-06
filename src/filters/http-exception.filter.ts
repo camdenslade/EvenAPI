@@ -54,24 +54,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : "Internal server error";
 
-    // Log raw exception for debugging (server-side only)
-    if (exception instanceof Error) {
-      console.error("Raw exception:", exception);
-      console.error("Stack trace:", exception.stack);
-    }
-
-    // TEMPORARY: Log stack traces server-side for diagnosis (single deploy only)
-    // TODO: Remove after confirming root cause
-    if (exception instanceof Error && status >= 500) {
-      this.logger.error("EXCEPTION_STACK", {
-        message: exception.message,
-        stack: exception.stack,
-        path: request.url,
-        method: request.method,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     // Sanitize message to remove PII
     const sanitizedMessage =
       typeof message === "string"
