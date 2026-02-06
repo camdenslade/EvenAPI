@@ -8,7 +8,7 @@ export class AddPrefMinDistanceMiles1736700000000 implements MigrationInterface 
     // This allows users to set a minimum distance preference for discovery
     await queryRunner.query(`
       ALTER TABLE "profiles" 
-      ADD COLUMN "prefMinDistanceMiles" integer NOT NULL DEFAULT 1
+      ADD COLUMN IF NOT EXISTS "prefMinDistanceMiles" integer NOT NULL DEFAULT 1
     `);
   }
 
