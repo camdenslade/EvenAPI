@@ -8,7 +8,7 @@ export class CreateReports1736500000000 implements MigrationInterface {
     // Reports persist indefinitely and are not deleted when users are deleted
     // No foreign keys to user tables (users may be deleted, but reports must persist)
     await queryRunner.query(`
-      CREATE TABLE "reports" (
+      CREATE TABLE IF NOT EXISTS "reports" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "reporterUid" varchar NOT NULL,
         "targetUid" varchar NULL,
@@ -23,19 +23,19 @@ export class CreateReports1736500000000 implements MigrationInterface {
 
     // Create indexes for efficient lookups
     await queryRunner.query(`
-      CREATE INDEX "IDX_reports_reporter" ON "reports" ("reporterUid")
+      CREATE INDEX IF NOT EXISTS "IDX_reports_reporter" ON "reports" ("reporterUid")
     `);
 
     await queryRunner.query(`
-      CREATE INDEX "IDX_reports_target" ON "reports" ("targetUid")
+      CREATE INDEX IF NOT EXISTS "IDX_reports_target" ON "reports" ("targetUid")
     `);
 
     await queryRunner.query(`
-      CREATE INDEX "IDX_reports_content" ON "reports" ("contentType", "contentId")
+      CREATE INDEX IF NOT EXISTS "IDX_reports_content" ON "reports" ("contentType", "contentId")
     `);
 
     await queryRunner.query(`
-      CREATE INDEX "IDX_reports_status" ON "reports" ("status")
+      CREATE INDEX IF NOT EXISTS "IDX_reports_status" ON "reports" ("status")
     `);
   }
 
