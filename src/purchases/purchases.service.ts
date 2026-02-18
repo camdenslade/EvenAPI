@@ -1000,9 +1000,10 @@ export class PurchasesService {
     } else if (productId.includes("undo") || productId === "one_undo") {
       tokenGrants.push({ tokenType: "undo", quantity: 1 });
     } else if (
-      productId.includes("message_request") ||
+      productId.includes("message") ||
       productId === "one_message_request"
     ) {
+      // Matches: "messagereqtoken", "message_request", "one_message_request"
       tokenGrants.push({ tokenType: "message_request", quantity: 1 });
     }
 
