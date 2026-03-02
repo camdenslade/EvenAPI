@@ -113,6 +113,11 @@ export function normalizePhoneToE164Strict(phone: string): string {
     throw new Error("Invalid phone number");
   }
 
+  // Reject obviously fake numbers (all same digit, e.g. 555-555-5555)
+  if (/^(\d)\1+$/.test(parsed.nationalNumber)) {
+    throw new Error("Phone number is not valid");
+  }
+
   return parsed.number;
 }
 
