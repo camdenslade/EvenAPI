@@ -383,22 +383,19 @@ export class AuthController {
         expiresInMs: this.challengeTtlMs,
       };
     } catch (err: unknown) {
-      const errorCode =
-        err && typeof err === "object" && "code" in err
-          ? String((err as { code?: string }).code)
-          : err instanceof Error
-            ? err.name
-            : undefined;
-      const errorMessage = err instanceof Error ? err.message : undefined;
-      const message =
-        errorCode === "NotAuthorizedException"
-          ? "Phone authentication not allowed"
-          : (errorMessage ?? "Failed to start authentication");
+      const internalMessage =
+        err instanceof Error ? err.message : "Unknown error";
       this.logger.error(
-        `initiatePhoneChallenge failed: ${message}`,
+        `initiatePhoneChallenge failed: ${internalMessage}`,
         err instanceof Error ? err.stack : undefined,
       );
-      throw new UnauthorizedException(message);
+      const isNotAuthorized =
+        err instanceof Error && err.name === "NotAuthorizedException";
+      throw new UnauthorizedException(
+        isNotAuthorized
+          ? "Phone authentication not allowed"
+          : "Unable to start phone verification. Please try again.",
+      );
     }
   }
 

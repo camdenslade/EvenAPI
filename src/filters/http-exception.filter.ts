@@ -55,12 +55,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : "Internal server error";
 
     // Sanitize message to remove PII
-    const sanitizedMessage =
+    // NestJS HttpException.getResponse() returns an object like { statusCode, message, error }
+    // Extract just the message string rather than stringifying the whole object.
+    const rawMessage =
       typeof message === "string"
-        ? sanitizeForLogging(message)
-        : typeof message === "object" && message !== null
-          ? sanitizeForLogging(JSON.stringify(message))
+        ? message
+        : typeof message === "object" && message !== null && "message" in message
+          ? String((message as { message: unknown }).message)
           : "Internal server error";
+    const sanitizedMessage = sanitizeForLogging(rawMessage);
 
     // Log error (sanitized)
     const errorLog = {
