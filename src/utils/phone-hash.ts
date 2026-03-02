@@ -29,8 +29,6 @@
 import { createHmac, scryptSync, randomBytes, timingSafeEqual } from "crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js/max";
 
-const ALLOWED_PHONE_LINE_TYPES = new Set(["MOBILE", "FIXED_LINE_OR_MOBILE"]);
-
 const DUMMY_NATIONAL_SEQUENCES = new Set([
   "0123456789",
   "1234567890",
@@ -113,11 +111,6 @@ export function normalizePhoneToE164Strict(phone: string): string {
 
   if (!parsed || !parsed.isPossible()) {
     throw new Error("Invalid phone number");
-  }
-
-  const lineType = parsed.getType();
-  if (!lineType || !ALLOWED_PHONE_LINE_TYPES.has(lineType)) {
-    throw new Error("Phone number must be a valid mobile number");
   }
 
   if (isLikelyDummyNumber(parsed.nationalNumber, parsed.country)) {
