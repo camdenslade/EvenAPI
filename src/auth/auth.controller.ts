@@ -344,6 +344,7 @@ export class AuthController {
             USERNAME: phoneE164,
             SECRET_HASH: this.buildSecretHash(phoneE164),
           },
+          ClientMetadata: { phoneNumber: phoneE164 },
         }),
       );
 
