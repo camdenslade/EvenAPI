@@ -111,7 +111,7 @@ export function normalizePhoneToE164Strict(phone: string): string {
     : normalizePhoneToE164(trimmed);
   const parsed = parsePhoneNumberFromString(candidate);
 
-  if (!parsed || !parsed.isValid()) {
+  if (!parsed || !parsed.isPossible()) {
     throw new Error("Invalid phone number");
   }
 
