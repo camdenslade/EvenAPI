@@ -113,10 +113,6 @@ export function normalizePhoneToE164Strict(phone: string): string {
     throw new Error("Invalid phone number");
   }
 
-  if (isLikelyDummyNumber(parsed.nationalNumber, parsed.country)) {
-    throw new Error("Phone number is not allowed");
-  }
-
   return parsed.number;
 }
 
