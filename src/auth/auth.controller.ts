@@ -72,6 +72,7 @@ import {
   getDemoAccountsAlways,
 } from "../constants/review-config";
 import { isAuthRateLimitDisabled } from "../constants/rate-limit-config";
+import { isCarrierLockDisabled } from "../constants/carrier-lock-config";
 
 // DTO for strong typing and automatic validation
 class RefreshSessionDto {
@@ -220,7 +221,7 @@ export class AuthController {
   }
 
   private async assertAllowedCarrier(phoneE164: string): Promise<void> {
-    if (process.env.PHONE_CARRIER_ALLOWLIST_DISABLED === "true") {
+    if (isCarrierLockDisabled()) {
       return;
     }
 
@@ -230,15 +231,32 @@ export class AuthController {
       const carrierType = carrier.type?.toLowerCase() ?? null;
 
       if (carrier.errorCode) {
-        throw new BadRequestException("Phone carrier not supported");
+        this.logger.warn(
+          `Carrier lookup returned error code for ${sanitizeForLogging(phoneE164)}: ${carrier.errorCode}`,
+        );
+        throw new BadRequestException(
+          "We couldn't verify your phone carrier. Please try a different number or contact support.",
+        );
       }
 
       if (!carrierName || !isAllowedCarrierName(carrierName)) {
-        throw new BadRequestException("Phone carrier not supported");
+        this.logger.warn(
+          `Carrier not in allowlist for ${sanitizeForLogging(phoneE164)}: "${carrierName || "unknown"}"`,
+        );
+        throw new BadRequestException(
+          carrierName
+            ? `Your carrier (${carrierName}) is not supported. Please use a major US carrier (Verizon, T-Mobile, AT&T, etc.).`
+            : "Your phone carrier is not supported. Please use a major US carrier (Verizon, T-Mobile, AT&T, etc.).",
+        );
       }
 
       if (carrierType && carrierType !== "mobile") {
-        throw new BadRequestException("Phone carrier not supported");
+        this.logger.warn(
+          `Non-mobile carrier type for ${sanitizeForLogging(phoneE164)}: "${carrierType}" (${carrierName})`,
+        );
+        throw new BadRequestException(
+          `Your carrier (${carrierName}) is not supported. A mobile phone number is required.`,
+        );
       }
     } catch (err) {
       if (err instanceof BadRequestException) {
