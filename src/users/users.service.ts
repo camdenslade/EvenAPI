@@ -509,6 +509,31 @@ export class UsersService {
     }
 
     if (!user) {
+      // If phone is already registered under a different uid (e.g. user re-registered
+      // after deleting their Cognito account), re-link to the existing DB account.
+      if (phoneHashDet) {
+        const existingByPhone = await this.usersRepo.findOne({
+          where: { phoneHashDet },
+          withDeleted: true,
+        });
+        if (existingByPhone) {
+          existingByPhone.uid = uid;
+          existingByPhone.email = email ?? existingByPhone.email;
+          existingByPhone.safetyIdentityId =
+            safetyIdentity?.id ?? existingByPhone.safetyIdentityId;
+          if (existingByPhone.deletedAt) {
+            existingByPhone.deletedAt = null;
+            existingByPhone.deletedReason = null;
+            existingByPhone.notificationsEnabled = true;
+            existingByPhone.reviewTimeoutExpiresAt = null;
+            await this.redis.bumpCacheVersion(existingByPhone.uid);
+          }
+          const saved = await this.usersRepo.save(existingByPhone);
+          await this.cacheUser(saved);
+          return saved;
+        }
+      }
+
       user = this.usersRepo.create({
         uid,
         email,
