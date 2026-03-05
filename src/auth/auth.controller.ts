@@ -51,10 +51,12 @@ import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
   RespondToAuthChallengeCommand,
+  AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
   type InitiateAuthCommandOutput,
   type RespondToAuthChallengeCommandOutput,
 } from "@aws-sdk/client-cognito-identity-provider";
-import { createHmac } from "crypto";
+import { createHmac, randomBytes } from "crypto";
 import {
   hashPhoneDeterministic,
   normalizePhoneToE164Strict,
@@ -352,7 +354,67 @@ export class AuthController {
       .digest("base64");
   }
 
+  /**
+   * Pre-creates the Cognito user with phone_number attribute before InitiateAuth.
+   * This ensures the CreateAuthChallenge Lambda can resolve the phone via AdminGetUser.
+   */
+  private async ensureCognitoUser(phoneE164: string): Promise<void> {
+    const userPoolId = process.env.COGNITO_USER_POOL_ID;
+    if (!userPoolId) {
+      this.logger.error("COGNITO_USER_POOL_ID is not set");
+      throw new InternalServerErrorException(
+        "Authentication service is not configured",
+      );
+    }
+
+    try {
+      await this.cognito.send(
+        new AdminCreateUserCommand({
+          UserPoolId: userPoolId,
+          Username: phoneE164,
+          UserAttributes: [
+            { Name: "phone_number", Value: phoneE164 },
+            { Name: "phone_number_verified", Value: "true" },
+          ],
+          MessageAction: "SUPPRESS",
+        }),
+      );
+
+      // Move user to CONFIRMED state so InitiateAuth works
+      const tempPassword = randomBytes(16).toString("hex") + "Aa1!";
+      await this.cognito.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: userPoolId,
+          Username: phoneE164,
+          Password: tempPassword,
+          Permanent: true,
+        }),
+      );
+
+      this.logger.log(
+        `Pre-created Cognito user for ${sanitizeForLogging(phoneE164)}`,
+      );
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "UsernameExistsException") {
+        // User already exists — no action needed
+        this.logger.debug(
+          `Cognito user already exists for ${sanitizeForLogging(phoneE164)}`,
+        );
+        return;
+      }
+
+      this.logger.error(
+        `Failed to pre-create Cognito user for ${sanitizeForLogging(phoneE164)}: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+      throw new InternalServerErrorException(
+        "Unable to start phone verification. Please try again.",
+      );
+    }
+  }
+
   private async initiatePhoneChallenge(phoneE164: string) {
+    await this.ensureCognitoUser(phoneE164);
+
     try {
       const resp: InitiateAuthCommandOutput = await this.cognito.send(
         new InitiateAuthCommand({
