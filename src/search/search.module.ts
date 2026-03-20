@@ -30,6 +30,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 
 import { SearchController } from "./search.controller";
 import { SearchService } from "./search.service";
+import { PublicSearchRateLimitGuard } from "../common/guards/rate-limit.guard";
 
 import { Profile } from "../database/entities/profile.entity";
 import { User } from "../database/entities/user.entity";
@@ -59,7 +60,7 @@ import { S3Module } from "../s3/s3.module";
     S3Module,
   ],
   controllers: [SearchController],
-  providers: [SearchService],
+  providers: [SearchService, PublicSearchRateLimitGuard],
   exports: [SearchService],
 })
 export class SearchModule {}

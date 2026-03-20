@@ -60,6 +60,37 @@ export class SupportRateLimitGuard implements CanActivate {
 }
 
 @Injectable()
+export class PublicSearchRateLimitGuard implements CanActivate {
+  private readonly windowSeconds = 60 * 60; // 1 hour
+  private readonly limit = 5;
+  private readonly prefix = "rate:search:public";
+
+  constructor(private readonly redis: RedisService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<Request>();
+    const ip = getIp(req);
+    const key = `${this.prefix}:${ip}`;
+
+    const current =
+      (await this.redis.incrementWithTtl(key, this.windowSeconds)) ?? 0;
+
+    if (current > this.limit) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: "Too many searches. Please sign in or try again later.",
+          retryAfter: this.windowSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    return true;
+  }
+}
+
+@Injectable()
 export class SuggestionsRateLimitGuard implements CanActivate {
   private readonly windowSeconds = 24 * 60 * 60; // 1 day
   private readonly limit = 5;

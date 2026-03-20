@@ -121,11 +121,11 @@ class VerifyPhoneDto {
 
 const ALLOWED_SCHOOL_DOMAINS = [
   "missouristate.edu",
-  "drury.edu",
-  "evangel.edu",
-  "otc.edu",
-  "mission.edu",
-  "sbuniv.edu",
+  // "drury.edu",     // fall release
+  // "evangel.edu",  // fall release
+  // "otc.edu",      // fall release
+  // "mission.edu",  // fall release
+  // "sbuniv.edu",   // fall release
 ];
 
 const PHONE_RATE_LIMITS = {

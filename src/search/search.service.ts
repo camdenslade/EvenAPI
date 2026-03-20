@@ -442,6 +442,77 @@ export class SearchService {
 
   //********************************************************************
   //
+  // searchByNamePublic Method
+  //
+  // Unauthenticated name search for users without an account.
+  // No token consumption, no like/match filtering.
+  // Optionally filters by distance when caller supplies coordinates.
+  //
+  //*******************************************************************
+  async searchByNamePublic(
+    name: string,
+    radiusMiles: number,
+    lat?: number,
+    lng?: number,
+  ): Promise<ProfilePreview[]> {
+    const normalizedName = name.trim().toLowerCase();
+    if (!normalizedName || normalizedName.length < 3) return [];
+
+    const rawProfiles = await this.profileRepo.find({
+      where: { name: ILike(`%${normalizedName}%`), paused: false },
+    });
+
+    const demoUids = getAllDemoUids();
+    const results: ProfilePreview[] = [];
+
+    for (const p of rawProfiles) {
+      if (demoUids.includes(p.userUid)) continue;
+
+      const u = await this.userRepo.findOne({ where: { uid: p.userUid } });
+      if (!u) continue;
+
+      let distance = 0;
+      if (lat != null && lng != null) {
+        if (u.latitude == null || u.longitude == null) continue;
+        distance = this.haversineMiles(lat, lng, u.latitude, u.longitude);
+        if (distance > radiusMiles) continue;
+      }
+
+      const firstPhoto = Array.isArray(p.photos) ? p.photos[0] : null;
+      let photoUrl: string | null = null;
+      if (firstPhoto && typeof firstPhoto === "string") {
+        if (firstPhoto.startsWith("http")) {
+          photoUrl = firstPhoto;
+        } else {
+          const normalized = this.normalizePhotoKey(firstPhoto);
+          if (normalized) {
+            try {
+              photoUrl = await this.s3.createReadUrl(normalized);
+            } catch {
+              photoUrl = null;
+            }
+          }
+        }
+      }
+
+      results.push({
+        id: p.id,
+        name: p.name,
+        age: this.calculateAge(p.birthday),
+        bio: p.bio,
+        photos: photoUrl ? [photoUrl] : [],
+        profileImageUrl: photoUrl,
+        photoUrl,
+        distanceMiles: distance,
+        userUid: p.userUid,
+      });
+    }
+
+    return results.sort((a, b) => a.distanceMiles - b.distanceMiles);
+  }
+
+  //********************************************************************
+  //
   // searchByNameAdmin Method
   //
   // Admin version of searchByName that doesn't exclude the current user.

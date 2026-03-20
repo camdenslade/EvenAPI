@@ -182,8 +182,6 @@ export class CognitoAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req: Request & { user?: any } = context.switchToHttp().getRequest();
-    console.error("AUTH HEADER:", req.headers.authorization);
-
     const header = req.headers.authorization;
     if (!header || !header.startsWith("Bearer ")) {
       throw new UnauthorizedException("Missing authorization header");

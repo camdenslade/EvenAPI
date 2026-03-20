@@ -91,11 +91,11 @@ const MAX_ARRAY_ENTRIES = 30;
 const S3_URL_PATTERN = /amazonaws\.com\/([^?]+)/;
 const SCHOOL_DOMAIN_MAP: Record<string, string> = {
   "missouristate.edu": "Missouri State University",
-  "drury.edu": "Drury University",
-  "evangel.edu": "Evangel University",
-  "otc.edu": "Ozarks Technical College",
-  "mission.edu": "Mission University",
-  "sbuniv.edu": "Southern Baptist University",
+  // "drury.edu": "Drury University",                   // fall release
+  // "evangel.edu": "Evangel University",               // fall release
+  // "otc.edu": "Ozarks Technical College",             // fall release
+  // "mission.edu": "Mission University",               // fall release
+  // "sbuniv.edu": "Southern Baptist University",       // fall release
 };
 const REQUIRE_SCHOOL_EMAIL_GATE =
   process.env.REQUIRE_SCHOOL_EMAIL_GATE === "true";

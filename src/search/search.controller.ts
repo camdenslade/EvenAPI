@@ -23,10 +23,11 @@
 //
 //*******************************************************************
 
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 
 import { AuthUser } from "../auth/auth-user.decorator";
-
+import { Public } from "../auth/decorators/public.decorator";
+import { PublicSearchRateLimitGuard } from "../common/guards/rate-limit.guard";
 import { SearchService } from "./search.service";
 
 @Controller("search")
@@ -69,5 +70,20 @@ export class SearchController {
   ) {
     const miles = radius ? Number(radius) : 25;
     return this.searchService.searchByName(user.uid, name, miles);
+  }
+
+  @Public()
+  @UseGuards(PublicSearchRateLimitGuard)
+  @Get("name/public")
+  async searchByNamePublic(
+    @Query("name") name: string,
+    @Query("lat") lat?: string,
+    @Query("lng") lng?: string,
+    @Query("radius") radius?: string,
+  ) {
+    const miles = radius ? Number(radius) : 25;
+    const latitude = lat ? Number(lat) : undefined;
+    const longitude = lng ? Number(lng) : undefined;
+    return this.searchService.searchByNamePublic(name, miles, latitude, longitude);
   }
 }
