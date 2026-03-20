@@ -617,17 +617,10 @@ export class ProfilesService {
 
     // Filter photos by status:
     // - Owner: anything except rejected
-    // - Public queue: approved only; if none approved yet, allow pending as a temporary fallback (hide flagged/rejected)
+    // - Public: everything except rejected (nudity/gore/minors only)
     const visiblePhotoEntries = photoEntries.filter((entry) => {
       const status = getStatus(entry.derived);
-      if (isOwner) {
-        return status !== "rejected"; // Owner can see pending/approved/flagged
-      }
-      if (status === "approved") return true;
-      if (!hasApproved && status === "pending") {
-        return true;
-      }
-      return false;
+      return status !== "rejected";
     });
 
     // Convert visible photo keys to presigned GET URLs
