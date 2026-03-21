@@ -123,6 +123,11 @@ export class AdminController {
   // uid    string    Firebase UID
   //
   //*******************************************************************
+  @Get("users/stats")
+  async userStats() {
+    return this.adminService.getUserStats();
+  }
+
   @Get("users/:uid")
   async getUser(@Param("uid") uid: string) {
     return this.adminService.getUser(uid);
@@ -642,18 +647,6 @@ export class AdminController {
   @Get("users/:uid/strikes")
   async getUserStrikes(@Param("uid") uid: string) {
     return this.adminService.getUserStrikes(uid);
-  }
-
-  //********************************************************************
-  //
-  // userStats Method
-  //
-  // GET /admin/users/stats endpoint. Returns total and active user counts.
-  //
-  //*******************************************************************
-  @Get("users/stats")
-  async userStats() {
-    return this.adminService.getUserStats();
   }
 
   //********************************************************************
