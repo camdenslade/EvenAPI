@@ -59,7 +59,6 @@ import { Suggestion } from "../suggestions/entities/suggestion.entity";
   imports: [
     TypeOrmModule.forFeature([
       Admin,
-      User,
       Profile,
       ProfilePhoto,
       AuditEvent,

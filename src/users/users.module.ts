@@ -81,6 +81,6 @@ import { NotificationsModule } from "../notifications/notifications.module";
 
   providers: [UsersService],
 
-  exports: [UsersService],
+  exports: [UsersService, TypeOrmModule],
 })
 export class UsersModule {}
