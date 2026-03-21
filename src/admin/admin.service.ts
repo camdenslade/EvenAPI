@@ -33,7 +33,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, FindOptionsWhere, MoreThanOrEqual, IsNull } from "typeorm";
+import { Repository, FindOptionsWhere, MoreThanOrEqual, IsNull, Not, In } from "typeorm";
 import * as jwt from "jsonwebtoken";
 import * as crypto from "crypto";
 import {
@@ -72,6 +72,7 @@ import { SecretsService } from "../secrets/secrets.service";
 import { AdminLoginDto } from "./dto/admin-login.dto";
 import { SupportTicket } from "../support/entities/support-ticket.entity";
 import { Suggestion } from "../suggestions/entities/suggestion.entity";
+import { getAllDemoUids } from "../constants/review-config";
 
 @Injectable()
 export class AdminService {
@@ -1701,11 +1702,12 @@ export class AdminService {
   //********************************************************************
   async getUserStats(): Promise<{ totalUsers: number; activeUsers: number }> {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const demoUids = getAllDemoUids();
 
     const [totalUsers, activeUsers] = await Promise.all([
-      this.usersRepo.count(),
+      this.usersRepo.count({ where: { uid: Not(In(demoUids)) } }),
       this.usersRepo.count({
-        where: { lastLocationUpdate: MoreThanOrEqual(since) },
+        where: { uid: Not(In(demoUids)), lastLocationUpdate: MoreThanOrEqual(since) },
       }),
     ]);
     return { totalUsers, activeUsers };
