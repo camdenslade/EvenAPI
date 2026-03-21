@@ -1713,6 +1713,23 @@ export class AdminService {
     return { totalUsers, activeUsers };
   }
 
+  async getUserActivityByHour(): Promise<Array<{ hour: string; count: number }>> {
+    const demoUids = getAllDemoUids();
+    const since = new Date(Date.now() - 12 * 60 * 60 * 1000);
+
+    const rows = await this.usersRepo
+      .createQueryBuilder("user")
+      .select("date_trunc('hour', user.lastLocationUpdate)", "hour")
+      .addSelect("COUNT(*)", "count")
+      .where("user.lastLocationUpdate >= :since", { since })
+      .andWhere("user.uid NOT IN (:...demoUids)", { demoUids })
+      .groupBy("date_trunc('hour', user.lastLocationUpdate)")
+      .orderBy("hour", "ASC")
+      .getRawMany<{ hour: string; count: string }>();
+
+    return rows.map((r) => ({ hour: r.hour, count: Number(r.count) }));
+  }
+
   //********************************************************************
   //
   // getUserStrikes Method

@@ -128,6 +128,11 @@ export class AdminController {
     return this.adminService.getUserStats();
   }
 
+  @Get("users/activity/hourly")
+  async userActivityByHour() {
+    return this.adminService.getUserActivityByHour();
+  }
+
   @Get("users/:uid")
   async getUser(@Param("uid") uid: string) {
     return this.adminService.getUser(uid);
