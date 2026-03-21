@@ -790,7 +790,11 @@ export class ProfilesService {
   //
   //*******************************************************************
   async checkStatus(uid: string) {
-    return { status: (await this.getProfile(uid)) ? "complete" : "missing" };
+    const profile = await this.getProfile(uid);
+    return {
+      status: profile ? "complete" : "missing",
+      paused: profile ? !!profile.paused : false,
+    };
   }
 
   //********************************************************************
