@@ -133,6 +133,15 @@ export class AdminController {
     return this.adminService.getUserActivityByHour();
   }
 
+  @Post("users/:uid/set-password")
+  async setUserPassword(
+    @Param("uid") uid: string,
+    @Body() body: { password: string; permanent?: boolean },
+  ) {
+    await this.adminService.setCognitoPassword(uid, body.password, body.permanent ?? true);
+    return { success: true };
+  }
+
   @Get("users/:uid")
   async getUser(@Param("uid") uid: string) {
     return this.adminService.getUser(uid);

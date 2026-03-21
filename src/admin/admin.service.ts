@@ -38,6 +38,7 @@ import * as jwt from "jsonwebtoken";
 import * as crypto from "crypto";
 import {
   AdminInitiateAuthCommand,
+  AdminSetUserPasswordCommand,
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
   AuthenticationResultType,
@@ -1728,6 +1729,35 @@ export class AdminService {
       .getRawMany<{ hour: string; count: string }>();
 
     return rows.map((r) => ({ hour: r.hour, count: Number(r.count) }));
+  }
+
+  async setCognitoPassword(
+    uid: string,
+    password: string,
+    permanent: boolean,
+  ): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { uid } });
+    if (!user) throw new NotFoundException("User not found");
+
+    const region = process.env.AWS_REGION;
+    const userPoolId = process.env.COGNITO_USER_POOL_ID;
+    if (!region || !userPoolId) {
+      throw new Error("AWS_REGION or COGNITO_USER_POOL_ID not configured");
+    }
+
+    // Cognito username is cognitoSub, email, or phone — prefer cognitoSub
+    const username = user.cognitoSub ?? user.email;
+    if (!username) throw new NotFoundException("No Cognito identifier for user");
+
+    const cognito = this.getCognitoClient(region);
+    await cognito.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: userPoolId,
+        Username: username,
+        Password: password,
+        Permanent: permanent,
+      }),
+    );
   }
 
   //********************************************************************
