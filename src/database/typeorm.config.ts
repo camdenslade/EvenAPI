@@ -34,7 +34,7 @@ export function getTypeOrmConfigSync(): DataSourceOptions {
     synchronize: false,
     logging: true,
 
-    entities: [__dirname + "/entities/*.{ts,js}"],
+    entities: [__dirname + "/../**/*.entity.{ts,js}"],
     migrations: [__dirname + "/migrations/*.{ts,js}"],
   };
 }
