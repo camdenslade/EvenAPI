@@ -106,6 +106,9 @@ async function bootstrap() {
     // - Structured JSON output for better parsing
   });
 
+  // Trust the first hop (nginx) so req.ip resolves to the real client IP
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
+
   // Global API prefix
   app.setGlobalPrefix("api");
 
