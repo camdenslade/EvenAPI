@@ -51,6 +51,7 @@ import { AdminGuard } from "../auth/guards/admin.guard";
 import { AdminAuthController } from "./admin-auth.controller";
 import { S3Module } from "../s3/s3.module";
 import { ReviewsModule } from "../reviews/reviews.module";
+import { ReviewAppeal } from "../database/entities/review-appeal.entity";
 import { EmailModule } from "../email/email.module";
 import { SupportTicket } from "../support/entities/support-ticket.entity";
 import { Suggestion } from "../suggestions/entities/suggestion.entity";
@@ -65,6 +66,7 @@ import { Suggestion } from "../suggestions/entities/suggestion.entity";
       Report,
       Review,
       ReviewStrike,
+      ReviewAppeal,
       Match,
       Thread,
       Message,

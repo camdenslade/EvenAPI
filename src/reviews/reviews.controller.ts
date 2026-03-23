@@ -28,18 +28,28 @@
 import { Controller, Post, Get, Body, Param, Req } from "@nestjs/common";
 
 import { ReviewsService } from "./reviews.service";
+import { ReviewAppealsService } from "./review-appeals.service";
 
 import { CreateReviewDto } from "./dto/create-review.dto";
 import { ReviewResponseDto } from "./dto/review-response.dto";
 import { ReviewWeekUsageDto } from "./dto/review-week-usage.dto";
+import { AuthUser } from "../auth/auth-user.decorator";
 
 interface FirebaseRequest {
   user: { uid: string };
 }
 
+interface SubmitAppealDto {
+  text?: string;
+  photoUrls?: string[];
+}
+
 @Controller("reviews")
 export class ReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) {}
+  constructor(
+    private readonly reviewsService: ReviewsService,
+    private readonly reviewAppealsService: ReviewAppealsService,
+  ) {}
 
   //********************************************************************
   //
@@ -319,5 +329,54 @@ export class ReviewsController {
   async hasUsedEmergencyReview(@Req() req: FirebaseRequest) {
     const used = await this.reviewsService.hasUsedEmergencyReview(req.user.uid);
     return { used };
+  }
+
+  //********************************************************************
+  //
+  // submitAppeal Method
+  //
+  // POST /reviews/:reviewId/appeal endpoint. Submits an appeal for a
+  // review. The authenticated user must be the subject of the review
+  // (targetUid). Only one appeal per review is allowed.
+  //
+  // Return Value
+  // ------------
+  // Promise<ReviewAppeal>    Created appeal entity
+  //
+  // Value Parameters
+  // ----------------
+  // reviewId    string             Review ID from route parameter
+  // user        AuthUser           Authenticated user
+  // dto         SubmitAppealDto    Optional text and photo URLs
+  //
+  //*******************************************************************
+  @Post(":reviewId/appeal")
+  async submitAppeal(
+    @Param("reviewId") reviewId: string,
+    @AuthUser() user: { uid: string },
+    @Body() dto: SubmitAppealDto,
+  ) {
+    return this.reviewAppealsService.submitAppeal(reviewId, user.uid, dto);
+  }
+
+  //********************************************************************
+  //
+  // getMyAppeals Method
+  //
+  // GET /reviews/my-appeals endpoint. Returns all appeals submitted
+  // by the currently authenticated user.
+  //
+  // Return Value
+  // ------------
+  // Promise<ReviewAppeal[]>    Array of appeal entities
+  //
+  // Value Parameters
+  // ----------------
+  // user    AuthUser    Authenticated user
+  //
+  //*******************************************************************
+  @Get("my-appeals")
+  async getMyAppeals(@AuthUser() user: { uid: string }) {
+    return this.reviewAppealsService.getMyAppeals(user.uid);
   }
 }

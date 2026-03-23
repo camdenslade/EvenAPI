@@ -52,6 +52,7 @@ import { ModerationModule } from "./moderation/moderation.module";
 import { SupportModule } from "./support/support.module";
 import { SuggestionsModule } from "./suggestions/suggestions.module";
 import { AdminModule } from "./admin/admin.module";
+import { ReferralsModule } from "./referrals/referrals.module";
 
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { getTypeOrmConfigSync } from "./database/typeorm.config";
@@ -96,6 +97,7 @@ import { SecretsModule } from "./secrets/secrets.module";
     SupportModule,
     SuggestionsModule,
     AdminModule,
+    ReferralsModule,
   ],
 
   providers: [

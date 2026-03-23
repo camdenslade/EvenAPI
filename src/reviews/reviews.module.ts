@@ -36,7 +36,10 @@ import { User } from "../database/entities/user.entity";
 import { UsersModule } from "../users/users.module";
 import { ChatModule } from "../chat/chat.module";
 
+import { ReviewAppeal } from "../database/entities/review-appeal.entity";
+
 import { ReviewsService } from "./reviews.service";
+import { ReviewAppealsService } from "./review-appeals.service";
 
 import { ReviewsController } from "./reviews.controller";
 
@@ -47,6 +50,7 @@ import { ReviewsController } from "./reviews.controller";
       ReviewStrike,
       ReviewWeekWindow,
       ReviewEmergency,
+      ReviewAppeal,
       User,
     ]),
     UsersModule,
@@ -55,8 +59,8 @@ import { ReviewsController } from "./reviews.controller";
 
   controllers: [ReviewsController],
 
-  providers: [ReviewsService],
+  providers: [ReviewsService, ReviewAppealsService],
 
-  exports: [ReviewsService],
+  exports: [ReviewsService, ReviewAppealsService],
 })
 export class ReviewsModule {}

@@ -44,6 +44,7 @@ import { UseInterceptors } from "@nestjs/common";
 import { AdminAuditInterceptor } from "./admin-audit.interceptor";
 import { CreateAdminDto } from "./dto/create-admin.dto";
 import { ReviewsService } from "../reviews/reviews.service";
+import { ReviewAppealsService } from "../reviews/review-appeals.service";
 import { ReviewResponseDto } from "../reviews/dto/review-response.dto";
 
 @Controller("admin")
@@ -54,6 +55,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly searchService: SearchService,
     private readonly reviewsService: ReviewsService,
+    private readonly reviewAppealsService: ReviewAppealsService,
   ) {}
 
   // Admin registry
@@ -754,5 +756,56 @@ export class AdminController {
       limit ? parseInt(limit, 10) : 50,
       offset ? parseInt(offset, 10) : 0,
     );
+  }
+
+  //********************************************************************
+  // Review Appeals Admin Endpoints
+  //********************************************************************
+
+  //********************************************************************
+  //
+  // getPendingAppeals Method
+  //
+  // GET /admin/appeals endpoint. Returns all pending review appeals
+  // for admin resolution.
+  //
+  // Return Value
+  // ------------
+  // Promise<ReviewAppeal[]>    Array of pending appeal entities
+  //
+  //*******************************************************************
+  @Get("appeals")
+  async getPendingAppeals() {
+    return this.reviewAppealsService.getPendingAppeals();
+  }
+
+  //********************************************************************
+  //
+  // resolveAppeal Method
+  //
+  // PATCH /admin/appeals/:id endpoint. Resolves a review appeal by
+  // approving or rejecting it. Approval marks the original review as
+  // rejected.
+  //
+  // Return Value
+  // ------------
+  // Promise<ReviewAppeal>    Updated appeal entity
+  //
+  // Value Parameters
+  // ----------------
+  // id      string    Appeal ID from route parameter
+  // body    Object    Resolution data: status and optional adminNote
+  //
+  //*******************************************************************
+  @Patch("appeals/:id")
+  async resolveAppeal(
+    @Param("id") id: string,
+    @Body()
+    body: {
+      status: "approved" | "rejected";
+      adminNote?: string;
+    },
+  ) {
+    return this.reviewAppealsService.resolveAppeal(id, body);
   }
 }
