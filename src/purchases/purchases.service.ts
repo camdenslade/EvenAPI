@@ -250,6 +250,22 @@ export class PurchasesService {
     return Buffer.from(input).toString("base64url");
   }
 
+  private normalizePem(pem: string): string {
+    // Replace literal \n and normalize spaces around PEM boundaries
+    let key = pem.replace(/\\n/g, "\n").trim();
+    // If header and body are separated by spaces instead of newlines, fix it
+    key = key
+      .replace(/-----BEGIN ([^-]+)----- +/, "-----BEGIN $1-----\n")
+      .replace(/ +-----END ([^-]+)-----/, "\n-----END $1-----");
+    // Collapse any remaining spaces within the base64 body into newlines
+    const lines = key.split("\n");
+    const normalized = lines.map((line) => {
+      if (line.startsWith("-----")) return line;
+      return line.replace(/ +/g, "\n");
+    });
+    return normalized.join("\n");
+  }
+
   private buildAppStoreClientToken(): string {
     const privateKey = process.env.APP_STORE_KEY;
     const keyId = process.env.APP_STORE_KEY_ID;
@@ -274,7 +290,7 @@ export class PurchasesService {
       {
         algorithm: "ES256",
         keyid: keyId,
-        secret: privateKey.replace(/\\n/g, "\n"),
+        secret: this.normalizePem(privateKey),
         header: {
           alg: "ES256",
           kid: keyId,
