@@ -255,7 +255,7 @@ export class PurchasesService {
     const keyId = process.env.APP_STORE_KEY_ID;
     const issuerId = process.env.APP_STORE_ISSUER_ID;
     const bundleId =
-      process.env.APP_STORE_BUNDLE_ID || process.env.APP_STORE_BUNDLE;
+      process.env.APP_STORE_BUNDLE_ID || process.env.APP_STORE_BUNDLE || "us.evendating.app";
 
     if (!privateKey || !keyId || !issuerId || !bundleId) {
       throw new ForbiddenException("App Store validation not configured");
@@ -467,8 +467,7 @@ export class PurchasesService {
 
       if (
         transaction.bundleId &&
-        process.env.APP_STORE_BUNDLE_ID &&
-        transaction.bundleId !== process.env.APP_STORE_BUNDLE_ID
+        transaction.bundleId !== (process.env.APP_STORE_BUNDLE_ID || "us.evendating.app")
       ) {
         throw new ForbiddenException("Receipt bundle mismatch");
       }
