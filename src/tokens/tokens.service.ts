@@ -437,7 +437,7 @@ export class TokensService {
     await this.invalidateTokenCache(userId);
   }
 
-  private async invalidateTokenCache(userId: string) {
+  async invalidateTokenCache(userId: string) {
     await this.redis.safe(() => this.redis.delete(this.tokenCacheKey(userId)), {
       op: "delete",
       key: this.tokenCacheKey(userId),

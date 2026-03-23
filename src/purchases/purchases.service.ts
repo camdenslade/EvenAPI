@@ -1052,6 +1052,8 @@ export class PurchasesService {
         quantity: grant.quantity,
       });
     }
+
+    await this.tokens.invalidateTokenCache(userId);
   }
 
   //********************************************************************
