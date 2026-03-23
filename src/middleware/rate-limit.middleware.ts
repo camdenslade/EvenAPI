@@ -60,8 +60,11 @@ export class RateLimitMiddleware implements NestMiddleware {
   constructor(private readonly redis: RedisService) {}
 
   private resolveBucket(path: string) {
-    if (path.startsWith("/api/auth") || path.startsWith("/api/purchases")) {
+    if (path.startsWith("/api/auth")) {
       return { key: "auth", ...RATE_LIMITS.auth };
+    }
+    if (path.startsWith("/api/purchases")) {
+      return { key: "purchases", ...RATE_LIMITS.purchases };
     }
     if (path.startsWith("/api/reports")) {
       return { key: "reports", ...RATE_LIMITS.reports };
