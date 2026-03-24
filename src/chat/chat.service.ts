@@ -555,13 +555,8 @@ export class ChatService {
             where: { id: lastMsg.senderProfileId, deletedAt: IsNull() },
           });
           lastMessageSenderId = senderProfile?.userUid ?? null;
-          // DEBUG: Log if fallback was used
           if (!lastMessageSenderId) {
-            console.log("DEBUG: Could not find senderProfile for message", {
-              messageId: lastMsg.id,
-              senderProfileId: lastMsg.senderProfileId,
-              hasSenderProfile: !!lastMsg.senderProfile,
-            });
+            lastMessageSenderId = null;
           }
         }
       }

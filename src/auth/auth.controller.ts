@@ -603,13 +603,6 @@ export class AuthController {
       }
 
       const accessToken = result.AccessToken;
-      const accessTokenType = typeof accessToken;
-      const dotCount = (accessToken.match(/\./g) || []).length;
-      console.error("[auth] verifyPhoneCode access token", {
-        type: accessTokenType,
-        value: accessToken,
-        dotCount,
-      });
 
       const payload = await verifyCognitoAccessToken(accessToken);
       const uid = payload.sub;

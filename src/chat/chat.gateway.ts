@@ -48,7 +48,18 @@ export type AuthedSocket = Socket & {
 const MESSAGE_RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const MESSAGE_RATE_LIMIT_MAX = 60; // max messages per window per user
 
-@WebSocketGateway({ cors: { origin: "*" } })
+@WebSocketGateway({
+  cors: {
+    origin: process.env.ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) ?? [
+      "https://evendating.us",
+      "https://www.evendating.us",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5174",
+    ],
+    credentials: true,
+  },
+})
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
