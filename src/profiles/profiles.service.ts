@@ -760,6 +760,18 @@ export class ProfilesService {
     });
     if (!p) return null; // Owner viewing own profile
 
+    // Backfill school if missing but school email is verified
+    if (!p.school) {
+      const user = await this.usersService.getByUid(uid);
+      if (user?.schoolEmailVerified && user.email) {
+        const derived = this.deriveSchoolFromEmail(user.email);
+        if (derived) {
+          p.school = derived;
+          await this.profilesRepo.save(p);
+        }
+      }
+    }
+
     const response = await this.toResponse(p, uid);
     await this.setCachedProfileResponse(uid, "owner", response);
     return response;
