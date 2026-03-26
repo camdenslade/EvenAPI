@@ -90,6 +90,8 @@ interface AppleTransactionPayload {
   gracePeriodExpiresDate?: string | number;
 }
 
+type CertificateUsageExpectation = "ca" | "leaf";
+
 interface GoogleServiceAccount {
   client_email: string;
   private_key: string;
@@ -338,6 +340,49 @@ export class PurchasesService {
     return crypto.createHash("sha256").update(cert.raw).digest("hex");
   }
 
+  private assertCertificateValidity(
+    cert: crypto.X509Certificate,
+    label: string,
+  ) {
+    const validFrom = new Date(cert.validFrom).getTime();
+    const validTo = new Date(cert.validTo).getTime();
+    const now = Date.now();
+    if (!Number.isFinite(validFrom) || !Number.isFinite(validTo)) {
+      throw new ForbiddenException(`${label} certificate validity invalid`);
+    }
+    if (now < validFrom || now > validTo) {
+      throw new ForbiddenException(`${label} certificate expired`);
+    }
+  }
+
+  private assertKeyUsage(
+    cert: crypto.X509Certificate,
+    label: string,
+    expected: CertificateUsageExpectation,
+  ) {
+    const keyUsage = cert.keyUsage ?? [];
+    if (expected === "leaf") {
+      if (
+        keyUsage.length > 0 &&
+        !keyUsage.includes("Digital Signature") &&
+        !keyUsage.includes("Non Repudiation")
+      ) {
+        throw new ForbiddenException(
+          `${label} certificate key usage is invalid`,
+        );
+      }
+      return;
+    }
+
+    if (
+      keyUsage.length > 0 &&
+      (!keyUsage.includes("Certificate Sign") ||
+        !keyUsage.includes("CRL Sign"))
+    ) {
+      throw new ForbiddenException(`${label} certificate is not a CA`);
+    }
+  }
+
   private validateAppleCertificateChain(x5c: string[]): crypto.X509Certificate {
     if (!Array.isArray(x5c) || x5c.length < 2) {
       throw new ForbiddenException("Apple certificate chain is incomplete");
@@ -360,16 +405,15 @@ export class PurchasesService {
       if (!current.verify(issuer.publicKey)) {
         throw new ForbiddenException("Apple certificate signature invalid");
       }
-
-      const validFrom = new Date(current.validFrom).getTime();
-      const validTo = new Date(current.validTo).getTime();
-      const now = Date.now();
-      if (!Number.isFinite(validFrom) || !Number.isFinite(validTo)) {
-        throw new ForbiddenException("Apple certificate validity invalid");
-      }
-      if (now < validFrom || now > validTo) {
-        throw new ForbiddenException("Apple certificate expired");
-      }
+      this.assertCertificateValidity(
+        current,
+        i === 0 ? "Apple leaf" : "Apple intermediate",
+      );
+      this.assertKeyUsage(
+        current,
+        i === 0 ? "Apple leaf" : "Apple intermediate",
+        i === 0 ? "leaf" : "ca",
+      );
     }
 
     const root = chain[chain.length - 1];
@@ -378,15 +422,8 @@ export class PurchasesService {
       throw new ForbiddenException("Apple root certificate not trusted");
     }
 
-    const rootValidFrom = new Date(root.validFrom).getTime();
-    const rootValidTo = new Date(root.validTo).getTime();
-    const now = Date.now();
-    if (!Number.isFinite(rootValidFrom) || !Number.isFinite(rootValidTo)) {
-      throw new ForbiddenException("Apple root certificate validity invalid");
-    }
-    if (now < rootValidFrom || now > rootValidTo) {
-      throw new ForbiddenException("Apple root certificate expired");
-    }
+    this.assertCertificateValidity(root, "Apple root");
+    this.assertKeyUsage(root, "Apple root", "ca");
 
     if (!root.verify(root.publicKey)) {
       throw new ForbiddenException("Apple root certificate invalid");

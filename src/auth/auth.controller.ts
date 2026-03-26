@@ -75,6 +75,7 @@ import {
 } from "../constants/review-config";
 import { isAuthRateLimitDisabled } from "../constants/rate-limit-config";
 import { isCarrierLockDisabled } from "../constants/carrier-lock-config";
+import { createDemoAccessToken } from "./demo-token";
 
 // DTO for strong typing and automatic validation
 class RefreshSessionDto {
@@ -466,6 +467,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async startPhoneAuth(@Body() body: StartPhoneAuthDto) {
     const phoneE164 = this.normalizePhoneInput(body.phoneNumber);
+    await this.checkPhoneRateLimit(phoneE164, "start");
 
     // Demo account bypass - return fake session for App Store review
     const demoAccount = getDemoAccountByPhone(phoneE164);
@@ -482,7 +484,6 @@ export class AuthController {
       };
     }
 
-    await this.checkPhoneRateLimit(phoneE164, "start");
     await this.assertAllowedCarrier(phoneE164);
     return this.initiatePhoneChallenge(phoneE164);
   }
@@ -492,6 +493,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resendPhoneCode(@Body() body: StartPhoneAuthDto) {
     const phoneE164 = this.normalizePhoneInput(body.phoneNumber);
+    await this.checkPhoneRateLimit(phoneE164, "resend");
 
     // Demo account bypass - return fake session for App Store review
     const demoAccount = getDemoAccountByPhone(phoneE164);
@@ -508,7 +510,6 @@ export class AuthController {
       };
     }
 
-    await this.checkPhoneRateLimit(phoneE164, "resend");
     await this.assertAllowedCarrier(phoneE164);
     return this.initiatePhoneChallenge(phoneE164);
   }
@@ -530,6 +531,8 @@ export class AuthController {
     if (!session || !code) {
       throw new BadRequestException("Session and code are required");
     }
+
+    await this.checkPhoneRateLimit(phoneE164, "verify");
 
     const demoAccount = getDemoAccountByPhone(phoneE164);
 
@@ -562,11 +565,11 @@ export class AuthController {
       const demoPayload = {
         sub: demoAccount.uid,
         phone_number: phoneE164,
-        token_use: "access",
+        token_use: "access" as const,
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour
       };
-      const demoToken = `demo.${Buffer.from(JSON.stringify(demoPayload)).toString("base64")}.signature`;
+      const demoToken = createDemoAccessToken(demoPayload);
 
       return {
         accessToken: demoToken,
@@ -580,7 +583,6 @@ export class AuthController {
       throw new UnauthorizedException("Invalid verification code");
     }
 
-    await this.checkPhoneRateLimit(phoneE164, "verify");
     await this.getChallengeSession(session, phoneE164);
 
     try {
@@ -818,8 +820,9 @@ export class AuthController {
   //*******************************************************************
   private validateEmailDomain(email: string): boolean {
     const normalized = email.toLowerCase();
-    const domain = normalized.split("@").pop();
-    if (!domain) return false;
+    const parts = normalized.split("@");
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
+    const domain = parts[1];
 
     // Check if domain ends with any allowed domain (handles subdomains)
     return ALLOWED_SCHOOL_DOMAINS.some(
@@ -971,13 +974,8 @@ export class AuthController {
     const domain = normalized.split("@").pop() || "";
     const isMissouriState =
       domain === "missouristate.edu" || domain.endsWith(".missouristate.edu");
-    const emailInUse = await this.usersService.isSchoolEmailInUse(
-      normalized,
-      user.uid,
-    );
-
     let bonusTokenGranted = false;
-    if (isMissouriState && !emailInUse && isFirstVerificationForEmail) {
+    if (isMissouriState && isFirstVerificationForEmail) {
       // Grant 1 search token
       const userEntity = await this.usersService.getByUid(user.uid);
       if (userEntity) {

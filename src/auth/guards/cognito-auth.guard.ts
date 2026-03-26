@@ -11,6 +11,7 @@ import {
   isDemoAccountEnabled,
   getDemoAccountByUid,
 } from "../../constants/review-config";
+import { verifyDemoAccessToken } from "../demo-token";
 
 type CognitoSettings = {
   issuer: string;
@@ -96,41 +97,19 @@ export async function verifyCognitoAccessToken(
 ): Promise<CognitoAccessTokenClaims> {
   // Handle demo tokens for App Store review
   if (token.startsWith("demo.") && isDemoAccountEnabled()) {
-    try {
-      const parts = token.split(".");
-      if (parts.length === 3) {
-        const payloadJson = Buffer.from(parts[1], "base64").toString("utf-8");
-        const payload = JSON.parse(payloadJson) as Record<string, unknown>;
-
-        // Verify demo token hasn't expired
-        const exp = payload.exp as number | undefined;
-        if (exp && exp < Math.floor(Date.now() / 1000)) {
-          throw new UnauthorizedException("Demo token expired");
-        }
-
-        const sub = getStringClaim(payload, "sub");
-        const demoAccount = sub ? getDemoAccountByUid(sub) : null;
-        if (!demoAccount) {
-          throw new UnauthorizedException("Invalid demo token");
-        }
-
-        const phoneNumber = getStringClaim(payload, "phone_number");
-        if (phoneNumber && phoneNumber !== demoAccount.phoneE164) {
-          throw new UnauthorizedException("Invalid demo token");
-        }
-
-        return {
-          sub: demoAccount.uid,
-          email: null,
-          phoneNumber: phoneNumber ?? null,
-          appleSub: null,
-          tokenUse: "access",
-        };
-      }
-    } catch (err) {
-      if (err instanceof UnauthorizedException) throw err;
-      throw new UnauthorizedException("Invalid demo token format");
+    const payload = verifyDemoAccessToken(token);
+    const demoAccount = getDemoAccountByUid(payload.sub);
+    if (!demoAccount || payload.phone_number !== demoAccount.phoneE164) {
+      throw new UnauthorizedException("Invalid demo token");
     }
+
+    return {
+      sub: demoAccount.uid,
+      email: null,
+      phoneNumber: payload.phone_number,
+      appleSub: null,
+      tokenUse: payload.token_use,
+    };
   }
 
   const { issuer, audiences } = getCognitoSettings();

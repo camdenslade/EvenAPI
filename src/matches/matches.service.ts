@@ -97,10 +97,9 @@ export class MatchesService {
   //*******************************************************************
   private hasExpired(match: Match): boolean {
     if (match.status === "expired") return true;
-
-    if (match.firstMessageAt) return false;
-
-    const age = Date.now() - new Date(match.createdAt).getTime();
+    const lastRelevantActivity =
+      match.lastActivityAt ?? match.firstMessageAt ?? match.createdAt;
+    const age = Date.now() - new Date(lastRelevantActivity).getTime();
     return age >= this.EXPIRATION_MS;
   }
 

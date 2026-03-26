@@ -32,6 +32,7 @@ import { ReviewStrike } from "../database/entities/review-strike.entity";
 import { ReviewWeekWindow } from "../database/entities/review-week-window.entity";
 import { ReviewEmergency } from "../database/entities/review-emergency.entity";
 import { User } from "../database/entities/user.entity";
+import { Match } from "../database/entities/match.entity";
 
 import { UsersModule } from "../users/users.module";
 import { ChatModule } from "../chat/chat.module";
@@ -52,6 +53,7 @@ import { ReviewsController } from "./reviews.controller";
       ReviewEmergency,
       ReviewAppeal,
       User,
+      Match,
     ]),
     UsersModule,
     ChatModule,

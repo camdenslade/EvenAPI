@@ -48,6 +48,7 @@ import { ReviewStrike } from "../database/entities/review-strike.entity";
 import { ReviewWeekWindow } from "../database/entities/review-week-window.entity";
 import { ReviewEmergency } from "../database/entities/review-emergency.entity";
 import { Message } from "../database/entities/message.entity";
+import { Match } from "../database/entities/match.entity";
 
 import { UsersService } from "../users/users.service";
 import { ChatService } from "../chat/chat.service";
@@ -90,6 +91,9 @@ export class ReviewsService {
     @InjectRepository(ReviewEmergency)
     private readonly emergencyRepo: Repository<ReviewEmergency>,
 
+    @InjectRepository(Match)
+    private readonly matchesRepo: Repository<Match>,
+
     private readonly users: UsersService,
     private readonly chat: ChatService,
   ) {}
@@ -126,6 +130,22 @@ export class ReviewsService {
       where: { reviewerUid, targetUid },
     });
     return existing !== null;
+  }
+
+  private async ensureUsersMatched(
+    reviewerUid: string,
+    targetUid: string,
+  ): Promise<void> {
+    const match = await this.matchesRepo.findOne({
+      where: [
+        { userAUid: reviewerUid, userBUid: targetUid },
+        { userAUid: targetUid, userBUid: reviewerUid },
+      ],
+    });
+
+    if (!match || match.status === "expired") {
+      throw new ForbiddenException("You can only review matched users.");
+    }
   }
 
   //********************************************************************
@@ -476,6 +496,8 @@ export class ReviewsService {
     if (reviewerUid === targetUid) {
       throw new BadRequestException("You cannot review yourself.");
     }
+
+    await this.ensureUsersMatched(reviewerUid, targetUid);
 
     const reviewer = await this.users.getByUid(reviewerUid);
     const target = await this.users.getByUid(targetUid);

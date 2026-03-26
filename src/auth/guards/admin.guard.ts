@@ -36,6 +36,7 @@ import { Repository } from "typeorm";
 import { Request } from "express";
 import { Admin } from "../../database/entities/admin.entity";
 import { SecretsService } from "../../secrets/secrets.service";
+import { verifyCognitoAccessToken } from "./cognito-auth.guard";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -90,19 +91,15 @@ export class AdminGuard implements CanActivate {
     const clientIp = this.getClientIp(req);
     if (!clientIp) return false;
     const whitelist = await this.getWhitelistedIps();
+    if (whitelist.length === 0) return true;
     return whitelist.some((allowed) => allowed === clientIp);
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req: AuthenticatedRequest = context.switchToHttp().getRequest();
 
-    if (await this.isIpWhitelisted(req)) {
-      req.user = {
-        uid: `ip:${this.getClientIp(req) ?? "unknown"}`,
-        email: null,
-        phone: null,
-      };
-      return true;
+    if (!(await this.isIpWhitelisted(req))) {
+      throw new ForbiddenException("Admin IP not allowed");
     }
 
     const header = req.headers.authorization;
@@ -115,27 +112,12 @@ export class AdminGuard implements CanActivate {
     let uid: string | null = req.user?.uid ?? null;
     let email: string | null = req.user?.email ?? null;
 
-    // Fallback: parse JWT payload to extract sub (no signature check here because
-    // CognitoAuthGuard should already have validated it)
+    // Fallback: independently verify the bearer token before trusting it.
     if (!uid) {
       const token = header.replace("Bearer ", "").trim();
-      const parts = token.split(".");
-      if (parts.length < 2) {
-        throw new UnauthorizedException("Invalid token");
-      }
-      try {
-        const payload = Buffer.from(
-          parts[1].replace(/-/g, "+").replace(/_/g, "/"),
-          "base64",
-        ).toString("utf8");
-        const parsed = JSON.parse(payload) as Record<string, unknown>;
-        const sub = parsed?.sub;
-        const mail = parsed?.email;
-        uid = typeof sub === "string" ? sub : null;
-        email = typeof mail === "string" ? mail : email;
-      } catch {
-        throw new UnauthorizedException("Invalid token payload");
-      }
+      const payload = await verifyCognitoAccessToken(token);
+      uid = payload.sub;
+      email = payload.email ?? email;
     }
 
     if (!uid) {

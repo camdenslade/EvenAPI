@@ -34,7 +34,10 @@ import {
   IsDateString,
   IsInt,
   Min,
+  Max,
 } from "class-validator";
+
+const MAX_ADMIN_GRANT = 10_000;
 
 export class GrantDto {
   @IsString()
@@ -43,16 +46,19 @@ export class GrantDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(MAX_ADMIN_GRANT)
   searchTokens?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(MAX_ADMIN_GRANT)
   messageTokens?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(MAX_ADMIN_GRANT)
   undoTokens?: number;
 
   @IsOptional()

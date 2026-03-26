@@ -78,6 +78,7 @@ import { getAllDemoUids } from "../constants/review-config";
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
+  private readonly maxTokenGrant = 10_000;
   private cognitoClient: CognitoIdentityProviderClient | null = null;
 
   constructor(
@@ -145,17 +146,30 @@ export class AdminService {
       ]),
     );
 
-    void this.auditRepo
-      .insert({ event, payload: sanitizedPayload })
-      .catch((err) =>
-        this.logger.error(
-          `Failed to persist admin audit ${event}: ${sanitizeForLogging(
-            err instanceof Error ? err.message : String(err),
-          )}`,
-        ),
-      );
+    void this.persistAudit(event, sanitizedPayload, 1);
 
     this.logger.log(JSON.stringify({ event, ...sanitizedPayload }));
+  }
+
+  private async persistAudit(
+    event: string,
+    payload: Record<string, string>,
+    retriesRemaining: number,
+  ): Promise<void> {
+    try {
+      await this.auditRepo.insert({ event, payload });
+    } catch (err) {
+      if (retriesRemaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        await this.persistAudit(event, payload, retriesRemaining - 1);
+        return;
+      }
+      this.logger.error(
+        `Failed to persist admin audit ${event}: ${sanitizeForLogging(
+          err instanceof Error ? err.message : String(err),
+        )}`,
+      );
+    }
   }
 
   //********************************************************************
@@ -1174,6 +1188,15 @@ export class AdminService {
     uid: string,
     body: { search?: number; message?: number; undo?: number },
   ) {
+    for (const [label, amount] of Object.entries(body)) {
+      if (amount === undefined) continue;
+      if (!Number.isInteger(amount) || amount < 0 || amount > this.maxTokenGrant) {
+        throw new BadRequestException(
+          `${label} must be an integer between 0 and ${this.maxTokenGrant}`,
+        );
+      }
+    }
+
     const user = await this.usersRepo.findOne({
       where: { uid, deletedAt: IsNull() },
     });
