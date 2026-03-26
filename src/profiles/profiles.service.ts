@@ -1575,6 +1575,9 @@ export class ProfilesService {
           ? null
           : data.gradYear;
     }
+    if ("showSchoolInfo" in data && data.showSchoolInfo !== undefined) {
+      p.showSchoolInfo = data.showSchoolInfo;
+    }
 
     if (nextPhotos) {
       // Ensure originals array stays aligned with derived photos

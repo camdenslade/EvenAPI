@@ -192,6 +192,9 @@ export class Profile {
   @Column({ type: "varchar", nullable: true })
   major: string | null;
 
+  @Column({ type: "boolean", nullable: true, default: false })
+  showSchoolInfo: boolean | null;
+
   @Column({
     type: process.env.NODE_ENV === "test" ? "datetime" : "timestamptz",
     nullable: true,

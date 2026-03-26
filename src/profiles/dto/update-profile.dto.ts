@@ -206,6 +206,10 @@ export class UpdateProfileDto {
   @ValidateIf((_, value) => value !== null)
   major?: string | null;
 
+  @IsOptional()
+  @IsBoolean()
+  showSchoolInfo?: boolean;
+
   // Discovery filter preferences (what user wants to filter by)
   @IsOptional()
   @IsNumber()
