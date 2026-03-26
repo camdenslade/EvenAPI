@@ -2,7 +2,7 @@
 //
 // NotificationsService Class
 //
-// Service for sending push notifications via Expo Push API.
+// Service for sending push notifications via Apple Push Notification service.
 // Handles sending notifications for message requests, request
 // acceptance, and new chat messages.
 //
@@ -30,42 +30,228 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, IsNull } from "typeorm";
-import { HttpService } from "@nestjs/axios";
-import { firstValueFrom } from "rxjs";
+import * as http2 from "node:http2";
+import { importPKCS8, SignJWT } from "jose";
 
 import { User } from "../database/entities/user.entity";
 import { sanitizeForLogging } from "../utils/log-sanitizer";
 import { RedisService } from "../redis/redis.service";
 
-interface ExpoPushMessage {
-  to: string;
-  sound?: string;
-  title: string;
-  body: string;
+interface ApnsPayload {
+  aps: {
+    alert: {
+      title: string;
+      body: string;
+    };
+    sound: string;
+  };
   data?: Record<string, any>;
 }
 
-interface ExpoPushResponse {
-  data: {
-    data: Array<{
-      status: "ok" | "error";
-      message?: string;
-    }>;
-  };
+interface ApnsConfig {
+  teamId: string;
+  keyId: string;
+  privateKey: string;
+  topic: string;
+  baseUrl: string;
+}
+
+interface DecodedApnsResponse {
+  reason?: string;
+}
+
+interface CachedApnsToken {
+  value: string;
+  expiresAtMs: number;
+}
+
+interface ApnsRequestResult {
+  statusCode: number;
+  responseBody: string;
+}
+
+type JsonRecord = Record<string, any>;
+type ApnsSigningKey = Awaited<ReturnType<typeof importPKCS8>>;
+
+interface SendNotificationOptions {
+  title: string;
+  body: string;
+  data?: JsonRecord;
 }
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly EXPO_PUSH_API_URL = "https://exp.host/--/api/v2/push/send";
   private readonly pushCacheTtlSeconds = 900; // 15 minutes
+  private apnsSigningKeyPromise: Promise<ApnsSigningKey> | null = null;
+  private apnsBearerToken: CachedApnsToken | null = null;
 
   constructor(
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
-    private readonly httpService: HttpService,
     private readonly redis: RedisService,
   ) {}
+
+  private getApnsConfig(): ApnsConfig | null {
+    const teamId = process.env.APPLE_APNS_TEAM_ID?.trim();
+    const keyId = process.env.APPLE_APNS_KEY_ID?.trim();
+    const privateKey = process.env.APPLE_APNS_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    const topic =
+      process.env.APPLE_APNS_TOPIC?.trim() ||
+      process.env.APPLE_BUNDLE_ID?.trim() ||
+      "us.evendating.app";
+    const baseUrl =
+      process.env.APPLE_APNS_BASE_URL?.trim() ||
+      (process.env.NODE_ENV === "production"
+        ? "https://api.push.apple.com"
+        : "https://api.sandbox.push.apple.com");
+
+    if (!teamId || !keyId || !privateKey) {
+      return null;
+    }
+
+    return {
+      teamId,
+      keyId,
+      privateKey,
+      topic,
+      baseUrl,
+    };
+  }
+
+  private async getApnsSigningKey(): Promise<ApnsSigningKey> {
+    const config = this.getApnsConfig();
+    if (!config) {
+      throw new Error("APNs is not configured");
+    }
+
+    if (!this.apnsSigningKeyPromise) {
+      this.apnsSigningKeyPromise = importPKCS8(config.privateKey, "ES256");
+    }
+
+    return this.apnsSigningKeyPromise;
+  }
+
+  private async getApnsBearerToken(config: ApnsConfig): Promise<string> {
+    const now = Date.now();
+    if (this.apnsBearerToken && this.apnsBearerToken.expiresAtMs > now + 60_000) {
+      return this.apnsBearerToken.value;
+    }
+
+    const signingKey = await this.getApnsSigningKey();
+    const issuedAt = Math.floor(now / 1000);
+    const token = await new SignJWT({})
+      .setProtectedHeader({
+        alg: "ES256",
+        kid: config.keyId,
+      })
+      .setIssuer(config.teamId)
+      .setIssuedAt(issuedAt)
+      .sign(signingKey);
+
+    this.apnsBearerToken = {
+      value: token,
+      expiresAtMs: now + 50 * 60 * 1000,
+    };
+
+    return token;
+  }
+
+  private async sendApnsRequest(
+    path: string,
+    headers: Record<string, string>,
+    body: string,
+  ): Promise<ApnsRequestResult> {
+    const config = this.getApnsConfig();
+    if (!config) {
+      throw new Error("APNs is not configured");
+    }
+
+    const client = http2.connect(config.baseUrl);
+    return await new Promise<ApnsRequestResult>((resolve, reject) => {
+      client.on("error", reject);
+
+      const req = client.request({
+        ":method": "POST",
+        ":path": path,
+        ...headers,
+      });
+
+      let responseBody = "";
+      let statusCode = 0;
+
+      req.setEncoding("utf8");
+      req.on("response", (responseHeaders) => {
+        const rawStatus = responseHeaders[http2.constants.HTTP2_HEADER_STATUS];
+        statusCode = typeof rawStatus === "number" ? rawStatus : Number(rawStatus ?? 0);
+      });
+      req.on("data", (chunk) => {
+        responseBody += chunk;
+      });
+      req.on("end", () => {
+        client.close();
+        resolve({ statusCode, responseBody });
+      });
+      req.on("error", (error) => {
+        client.close();
+        reject(error);
+      });
+
+      req.end(body);
+    });
+  }
+
+  private async sendApnsNotification(
+    deviceToken: string,
+    options: SendNotificationOptions,
+  ): Promise<void> {
+    const config = this.getApnsConfig();
+    if (!config) {
+      this.logger.warn("APNs not configured; skipping push delivery");
+      return;
+    }
+
+    const apnsPayload: ApnsPayload = {
+      aps: {
+        alert: {
+          title: options.title,
+          body: options.body,
+        },
+        sound: "default",
+      },
+    };
+    if (options.data) {
+      apnsPayload.data = options.data;
+    }
+
+    const bearer = await this.getApnsBearerToken(config);
+    const path = `/3/device/${deviceToken}`;
+    const { statusCode, responseBody } = await this.sendApnsRequest(
+      path,
+      {
+        authorization: `bearer ${bearer}`,
+        "apns-topic": config.topic,
+        "apns-push-type": "alert",
+        "content-type": "application/json",
+      },
+      JSON.stringify(apnsPayload),
+    );
+
+    if (statusCode >= 200 && statusCode < 300) {
+      return;
+    }
+
+    let reason = `HTTP ${statusCode}`;
+    try {
+      const parsed = JSON.parse(responseBody) as DecodedApnsResponse;
+      if (typeof parsed.reason === "string") {
+        reason = parsed.reason;
+      }
+    } catch {
+    }
+
+    throw new Error(reason);
+  }
 
   private pushCacheKey(uid: string) {
     return `push:${uid}`;
@@ -157,39 +343,11 @@ export class NotificationsService {
         return;
       }
 
-      const message: ExpoPushMessage = {
-        to: prefs.pushToken,
-        sound: "default",
+      await this.sendApnsNotification(prefs.pushToken, {
         title,
         body,
         data,
-      };
-
-      const response = await firstValueFrom(
-        this.httpService.post<ExpoPushResponse>(
-          this.EXPO_PUSH_API_URL,
-          [message],
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        ),
-      );
-
-      // Type guard for Expo push response
-      const responseData = response.data as ExpoPushResponse | undefined;
-      const result =
-        responseData && Array.isArray(responseData.data?.data)
-          ? responseData.data.data[0]
-          : undefined;
-      if (result && result.status === "error") {
-        const msg =
-          typeof result.message === "string" ? result.message : "Unknown error";
-        this.logger.warn(
-          `Failed to send notification to ${recipientUid}: ${sanitizeForLogging(msg)}`,
-        );
-      }
+      });
     } catch (err: unknown) {
       this.logger.error(
         `Error sending notification to ${recipientUid}: ${sanitizeForLogging(

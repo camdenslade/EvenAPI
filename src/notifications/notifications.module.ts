@@ -3,7 +3,7 @@
 // NotificationsModule Class
 //
 // Module for push notification functionality. Imports TypeORM entities
-// (User), HttpModule for HTTP requests, and provides NotificationsService.
+// (User) and RedisModule, and provides NotificationsService.
 //
 // Return Value
 // ------------
@@ -25,14 +25,13 @@
 
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { HttpModule } from "@nestjs/axios";
 
 import { NotificationsService } from "./notifications.service";
 import { User } from "../database/entities/user.entity";
 import { RedisModule } from "../redis/redis.module";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), HttpModule, RedisModule],
+  imports: [TypeOrmModule.forFeature([User]), RedisModule],
   providers: [NotificationsService],
   exports: [NotificationsService],
 })
