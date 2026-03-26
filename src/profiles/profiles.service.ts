@@ -720,6 +720,7 @@ export class ProfilesService {
       school: profile.school ?? null,
       gradYear: profile.gradYear ?? null,
       major: profile.major ?? null,
+      showSchoolInfo: profile.showSchoolInfo ?? false,
       deletedAt: profile.deletedAt ?? null,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
