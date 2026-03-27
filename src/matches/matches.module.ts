@@ -40,6 +40,7 @@ import { ProfilesModule } from "../profiles/profiles.module";
 import { RedisModule } from "../redis/redis.module";
 import { BlocksModule } from "../blocks/blocks.module";
 import { ChatModule } from "../chat/chat.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { ChatModule } from "../chat/chat.module";
     ProfilesModule,
     RedisModule,
     BlocksModule,
+    NotificationsModule,
     forwardRef(() => ChatModule),
   ],
 

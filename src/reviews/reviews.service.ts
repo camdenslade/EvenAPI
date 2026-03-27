@@ -52,6 +52,7 @@ import { Match } from "../database/entities/match.entity";
 
 import { UsersService } from "../users/users.service";
 import { ChatService } from "../chat/chat.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 import { FLAGGED_WORDS } from "./keywords";
 
@@ -96,6 +97,7 @@ export class ReviewsService {
 
     private readonly users: UsersService,
     private readonly chat: ChatService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   //********************************************************************
@@ -606,6 +608,10 @@ export class ReviewsService {
         const safetyId: string = reviewer.safetyIdentityId;
         await this.users.markEmergencyReviewUsed(safetyId);
       }
+    }
+
+    if (review.approved) {
+      await this.notifications.sendReviewNotification(targetUid);
     }
 
     return review;

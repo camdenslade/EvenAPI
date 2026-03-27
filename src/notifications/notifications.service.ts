@@ -79,10 +79,22 @@ interface SendNotificationOptions {
   data?: JsonRecord;
 }
 
+type AllowedPushType =
+  | "match"
+  | "message_request"
+  | "review"
+  | "new_message";
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly pushCacheTtlSeconds = 900; // 15 minutes
+  private readonly allowedPushTypes = new Set<AllowedPushType>([
+    "match",
+    "message_request",
+    "review",
+    "new_message",
+  ]);
   private apnsSigningKeyPromise: Promise<ApnsSigningKey> | null = null;
   private apnsBearerToken: CachedApnsToken | null = null;
 
@@ -337,6 +349,14 @@ export class NotificationsService {
     data?: Record<string, any>,
   ): Promise<void> {
     try {
+      const type = typeof data?.type === "string" ? data.type : null;
+      if (!type || !this.allowedPushTypes.has(type as AllowedPushType)) {
+        this.logger.debug(
+          `Skipping push notification for ${recipientUid}; type ${String(type)} is not allowed`,
+        );
+        return;
+      }
+
       const prefs = await this.getPushPreferences(recipientUid);
 
       if (!prefs || !prefs.pushToken || prefs.notificationsEnabled === false) {
@@ -426,6 +446,32 @@ export class NotificationsService {
       {
         type: "request_accepted",
         threadId,
+      },
+    );
+  }
+
+  async sendMatchNotification(
+    recipientUid: string,
+    matchId: string,
+  ): Promise<void> {
+    await this.sendNotification(
+      recipientUid,
+      "It's a match",
+      "You have a new match",
+      {
+        type: "match",
+        matchId,
+      },
+    );
+  }
+
+  async sendReviewNotification(recipientUid: string): Promise<void> {
+    await this.sendNotification(
+      recipientUid,
+      "New review",
+      "Someone left you a new review",
+      {
+        type: "review",
       },
     );
   }

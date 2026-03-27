@@ -36,6 +36,7 @@ import { Match } from "../database/entities/match.entity";
 
 import { UsersModule } from "../users/users.module";
 import { ChatModule } from "../chat/chat.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 
 import { ReviewAppeal } from "../database/entities/review-appeal.entity";
 
@@ -57,6 +58,7 @@ import { ReviewsController } from "./reviews.controller";
     ]),
     UsersModule,
     ChatModule,
+    NotificationsModule,
   ],
 
   controllers: [ReviewsController],

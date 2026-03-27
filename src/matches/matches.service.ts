@@ -48,6 +48,7 @@ import { ProfilesService } from "../profiles/profiles.service";
 import { UsersService } from "../users/users.service";
 import { BlocksService } from "../blocks/blocks.service";
 import { ChatGateway } from "../chat/chat.gateway";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @Injectable()
 export class MatchesService {
@@ -66,6 +67,7 @@ export class MatchesService {
     private readonly users: UsersService,
     private readonly profiles: ProfilesService,
     private readonly blocksService: BlocksService,
+    private readonly notifications: NotificationsService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
     private readonly dataSource: DataSource,
@@ -171,6 +173,7 @@ export class MatchesService {
 
     // Emit real-time match revival event to both users
     this.emitMatchUpdated(saved, match.userAUid, match.userBUid);
+    await this.sendMatchNotifications(saved);
 
     return saved;
   }
@@ -288,8 +291,16 @@ export class MatchesService {
 
     // Emit real-time match creation event to both users
     this.emitMatchCreated(saved, uidA, uidB);
+    await this.sendMatchNotifications(saved);
 
     return saved;
+  }
+
+  private async sendMatchNotifications(match: Match): Promise<void> {
+    await Promise.allSettled([
+      this.notifications.sendMatchNotification(match.userAUid, match.id),
+      this.notifications.sendMatchNotification(match.userBUid, match.id),
+    ]);
   }
 
   //********************************************************************
