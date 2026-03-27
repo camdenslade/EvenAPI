@@ -81,6 +81,7 @@ import {
 import { isAuthRateLimitDisabled } from "../constants/rate-limit-config";
 import { isCarrierLockDisabled } from "../constants/carrier-lock-config";
 import { createDemoAccessToken } from "./demo-token";
+import { ReferralsService } from "../referrals/referrals.service";
 
 // DTO for strong typing and automatic validation
 class RefreshSessionDto {
@@ -167,6 +168,7 @@ export class AuthController {
     private readonly profilesService: ProfilesService,
     private readonly matchesService: MatchesService,
     private readonly blocksService: BlocksService,
+    private readonly referralsService: ReferralsService,
   ) {
     this.cognito = new CognitoIdentityProviderClient({
       region: process.env.AWS_REGION || "us-east-1",
@@ -1069,7 +1071,11 @@ export class AuthController {
     }
 
     // Update user email and mark as verified
-    await this.usersService.updateSchoolEmail(user.uid, normalized);
+    const updatedUser = await this.usersService.updateSchoolEmail(
+      user.uid,
+      normalized,
+    );
+    await this.referralsService.linkReferral(normalized, updatedUser.id);
     await this.profilesService.syncSchoolFromVerifiedEmail(
       user.uid,
       normalized,
@@ -1084,11 +1090,8 @@ export class AuthController {
     let bonusTokenGranted = false;
     if (isMissouriState && isFirstVerificationForEmail) {
       // Grant 1 search token
-      const userEntity = await this.usersService.getByUid(user.uid);
-      if (userEntity) {
-        await this.tokensService.grantAdminTokens(userEntity.id, "search", 1);
-        bonusTokenGranted = true;
-      }
+      await this.tokensService.grantAdminTokens(updatedUser.id, "search", 1);
+      bonusTokenGranted = true;
     }
 
     return {

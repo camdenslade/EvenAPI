@@ -32,6 +32,8 @@ import { Referral } from "../database/entities/referral.entity";
 import { User } from "../database/entities/user.entity";
 
 import { TokensModule } from "../tokens/tokens.module";
+import { EmailModule } from "../email/email.module";
+import { RedisModule } from "../redis/redis.module";
 
 import { ReferralsService } from "./referrals.service";
 import { ReferralsController } from "./referrals.controller";
@@ -40,6 +42,8 @@ import { ReferralsController } from "./referrals.controller";
   imports: [
     TypeOrmModule.forFeature([Referral, User]),
     TokensModule,
+    EmailModule,
+    RedisModule,
   ],
 
   controllers: [ReferralsController],

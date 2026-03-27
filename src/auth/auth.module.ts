@@ -33,6 +33,7 @@ import { RedisModule } from "../redis/redis.module";
 import { ProfilesModule } from "../profiles/profiles.module";
 import { MatchesModule } from "../matches/matches.module";
 import { BlocksModule } from "../blocks/blocks.module";
+import { ReferralsModule } from "../referrals/referrals.module";
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { BlocksModule } from "../blocks/blocks.module";
     ProfilesModule,
     MatchesModule,
     BlocksModule,
+    ReferralsModule,
   ],
   controllers: [AuthController],
 })

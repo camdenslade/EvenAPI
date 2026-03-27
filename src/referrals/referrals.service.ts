@@ -41,6 +41,8 @@ import { Repository } from "typeorm";
 import { Referral } from "../database/entities/referral.entity";
 import { User } from "../database/entities/user.entity";
 import { TokensService } from "../tokens/tokens.service";
+import { EmailService } from "../email/email.service";
+import { RedisService } from "../redis/redis.service";
 
 const ACCEPTED_SCHOOL_DOMAINS = [
   "missouristate.edu",
@@ -65,6 +67,8 @@ export class ReferralsService {
     private readonly usersRepo: Repository<User>,
 
     private readonly tokens: TokensService,
+    private readonly emailService: EmailService,
+    private readonly redis: RedisService,
   ) {}
 
   //********************************************************************
@@ -186,9 +190,32 @@ export class ReferralsService {
 
     await this.referralsRepo.save(referral);
 
-    // Log email send (email sending not implemented)
+    const subject = "You’ve been invited to join Even";
+    const htmlBody = [
+      "<p>You’ve been invited to join Even.</p>",
+      "<p>Create your account with this school email address to connect your referral automatically.</p>",
+      "<p>Once you are verified and active in the app for 60 minutes, your friend earns 1 free search token and you earn 1 free message request token.</p>",
+      "<p>See you on Even.</p>",
+    ].join("");
+    const textBody = [
+      "You've been invited to join Even.",
+      "",
+      "Create your account with this school email address to connect your referral automatically.",
+      "",
+      "Once you are verified and active in the app for 60 minutes, your friend earns 1 free search token and you earn 1 free message request token.",
+      "",
+      "See you on Even.",
+    ].join("\n");
+
+    await this.emailService.sendEmail(
+      normalizedEmail,
+      subject,
+      htmlBody,
+      textBody,
+    );
+
     this.logger.log(
-      `Referral email would be sent to ${normalizedEmail} from user ${referrerUserId}`,
+      `Referral email sent to ${normalizedEmail} from user ${referrerUserId}`,
     );
 
     return referral;
@@ -419,6 +446,35 @@ export class ReferralsService {
     const user = await this.usersRepo.findOne({ where: { uid } });
     if (!user) return null;
     return this.getReferralStatus(user.id);
+  }
+
+  async recordAuthenticatedActivityByUid(uid: string): Promise<void> {
+    const user = await this.usersRepo.findOne({ where: { uid } });
+    if (!user) return;
+
+    const referral = await this.referralsRepo.findOne({
+      where: { referredUserId: user.id },
+    });
+    if (!referral || referral.status === "rewarded") {
+      return;
+    }
+
+    const minuteBucket = Math.floor(Date.now() / 60_000);
+    const key = `referral:activity:${user.id}:${minuteBucket}`;
+    const recorded = await this.redis.safe<string | null>(
+      () =>
+        this.redis.client.set(key, "1", {
+          NX: true,
+          EX: 120,
+        }),
+      { op: "setnx", key, ttlSeconds: 120 },
+    );
+
+    if (recorded !== "OK") {
+      return;
+    }
+
+    await this.pingActivity(user.id);
   }
 
   //********************************************************************

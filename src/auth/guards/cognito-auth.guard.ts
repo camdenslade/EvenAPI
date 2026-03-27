@@ -2,11 +2,13 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
+import { ReferralsService } from "../../referrals/referrals.service";
 import {
   isDemoAccountEnabled,
   getDemoAccountByUid,
@@ -151,7 +153,12 @@ export async function verifyCognitoAccessToken(
 
 @Injectable()
 export class CognitoAuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  private readonly logger = new Logger(CognitoAuthGuard.name);
+
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly referralsService: ReferralsService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -179,6 +186,14 @@ export class CognitoAuthGuard implements CanActivate {
       phone: payload.phoneNumber,
       appleSub: payload.appleSub,
     };
+
+    void this.referralsService
+      .recordAuthenticatedActivityByUid(payload.sub)
+      .catch((error) => {
+        const message =
+          error instanceof Error ? error.message : "Unknown referral error";
+        this.logger.warn(`Referral activity tracking skipped: ${message}`);
+      });
 
     return true;
   }
