@@ -95,6 +95,12 @@ class UpdateEmailDto {
   email: string;
 }
 
+class RefreshTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken: string;
+}
+
 class VerifyEmailDto {
   @IsString()
   @IsNotEmpty()
@@ -147,6 +153,9 @@ export class AuthController {
   private readonly cognitoClientId =
     process.env.COGNITO_APP_CLIENT_ID || "50aqk5vith0fjc6gb857tgjvv";
   private readonly cognitoClientSecret = process.env.COGNITO_APP_CLIENT_SECRET;
+  private readonly cognitoDomain =
+    process.env.COGNITO_DOMAIN ||
+    "https://us-east-1mggdopo3g.auth.us-east-1.amazoncognito.com";
   private readonly challengeTtlMs = 5 * 60 * 1000; // 5 minutes
   private readonly maxAttemptsPerSession = 5;
 
@@ -373,6 +382,19 @@ export class AuthController {
     return createHmac("sha256", this.cognitoClientSecret)
       .update(username + this.cognitoClientId)
       .digest("base64");
+  }
+
+  private getCognitoClientAuthorizationHeader(): string {
+    if (!this.cognitoClientId || !this.cognitoClientSecret) {
+      throw new InternalServerErrorException(
+        "Cognito client credentials are not configured",
+      );
+    }
+
+    const credentials = Buffer.from(
+      `${this.cognitoClientId}:${this.cognitoClientSecret}`,
+    ).toString("base64");
+    return `Basic ${credentials}`;
   }
 
   /**
@@ -672,6 +694,71 @@ export class AuthController {
       );
       throw new UnauthorizedException(message);
     }
+  }
+
+  @Public()
+  @Post("token/refresh")
+  @HttpCode(HttpStatus.OK)
+  async refreshToken(@Body() body: RefreshTokenDto): Promise<{
+    accessToken: string;
+    refreshToken: string | null;
+    expiresIn: number | null;
+    tokenType: string | null;
+  }> {
+    const refreshToken = body.refreshToken?.trim();
+    if (!refreshToken) {
+      throw new BadRequestException("Refresh token is required");
+    }
+
+    const tokenURL = new URL("/oauth2/token", this.cognitoDomain);
+    const bodyParams = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    });
+
+    const response = await fetch(tokenURL, {
+      method: "POST",
+      headers: {
+        Authorization: this.getCognitoClientAuthorizationHeader(),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: bodyParams.toString(),
+    });
+
+    const raw = await response.text();
+    let result: Record<string, unknown> = {};
+    if (raw) {
+      try {
+        result = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        result = {};
+      }
+    }
+
+    if (!response.ok) {
+      const description =
+        typeof result.error_description === "string"
+          ? result.error_description
+          : typeof result.error === "string"
+            ? result.error
+            : "Token refresh failed";
+      this.logger.warn(`refreshToken failed: ${description}`);
+      throw new UnauthorizedException("Session expired. Please log in again.");
+    }
+
+    const accessToken =
+      typeof result.access_token === "string" ? result.access_token : null;
+    if (!accessToken) {
+      throw new UnauthorizedException("Session expired. Please log in again.");
+    }
+
+    return {
+      accessToken,
+      refreshToken:
+        typeof result.refresh_token === "string" ? result.refresh_token : null,
+      expiresIn: typeof result.expires_in === "number" ? result.expires_in : null,
+      tokenType: typeof result.token_type === "string" ? result.token_type : null,
+    };
   }
 
   //********************************************************************
