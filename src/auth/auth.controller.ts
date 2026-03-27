@@ -25,6 +25,7 @@
 
 import {
   Controller,
+  Get,
   Post,
   Body,
   UnauthorizedException,
@@ -69,6 +70,10 @@ import {
 import { sanitizeForLogging } from "../utils/log-sanitizer";
 import { verifyCognitoAccessToken } from "./guards/cognito-auth.guard";
 import {
+  DEMO_SCHOOL_EMAIL,
+  getDemoAccounts,
+  getDemoVerificationCode,
+  isDemoAccountEnabled,
   isDemoVerificationCode,
   getDemoAccountByPhone,
   getDemoAccountsAlways,
@@ -162,6 +167,21 @@ export class AuthController {
   private findDemoFromRaw(raw: string) {
     const digits = raw.replace(/[^\d]/g, "");
     return getDemoAccountsAlways().find((a) => a.phoneE164.endsWith(digits));
+  }
+
+  @Public()
+  @Get("review-environment")
+  getReviewEnvironment() {
+    const enabled = isDemoAccountEnabled();
+    const primary = getDemoAccounts()[0] ?? null;
+    return {
+      enabled,
+      primaryPhoneE164: enabled ? primary?.phoneE164 ?? null : null,
+      primaryPhoneDisplay: enabled ? primary?.phoneDisplay ?? null : null,
+      primaryLabel: enabled ? primary?.label ?? null : null,
+      verificationCode: enabled ? getDemoVerificationCode() : null,
+      schoolEmail: enabled ? DEMO_SCHOOL_EMAIL : null,
+    };
   }
 
   private normalizePhoneInput(raw: string): string {
