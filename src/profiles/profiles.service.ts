@@ -1760,6 +1760,7 @@ export class ProfilesService {
     }
 
     profile.school = derivedSchool;
+    profile.showSchoolInfo = true;
     await this.profilesRepo.save(profile);
 
     await this.redis.bumpCacheVersion(uid);
