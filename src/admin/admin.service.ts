@@ -1949,15 +1949,15 @@ export class AdminService {
       sex: string | null;
       age: number | null;
       photoUrl: string | null;
+      paused: boolean;
       createdAt: Date;
     }>
   > {
     const profiles = await this.profileRepo.find({
-      where: { paused: false },
       order: { createdAt: "DESC" },
       skip: offset,
       take: limit,
-      select: ["userUid", "name", "sex", "birthday", "photos", "createdAt"],
+      select: ["userUid", "name", "sex", "birthday", "photos", "paused", "createdAt"],
     });
 
     const mapped = profiles.map((p) => {
@@ -1977,6 +1977,7 @@ export class AdminService {
         name: p.name || "Unknown",
         sex: p.sex,
         age,
+        paused: p.paused ?? false,
         firstPhoto:
           Array.isArray(p.photos) && p.photos.length > 0 ? p.photos[0] : null,
         createdAt: p.createdAt,
@@ -2008,6 +2009,7 @@ export class AdminService {
           sex: p.sex,
           age: p.age,
           photoUrl,
+          paused: p.paused,
           createdAt: p.createdAt,
         };
       }),
